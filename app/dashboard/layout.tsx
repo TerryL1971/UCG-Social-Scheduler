@@ -1,6 +1,6 @@
 // app/dashboard/layout.tsx
 
-import { createServerSupabaseClient } from '@/lib/supabase'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'

@@ -27,20 +27,30 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   // Fetch dealerships on mount
   useEffect(() => {
     const fetchDealerships = async () => {
-      const { data, error } = await supabase
-        .from('dealerships')
-        .select('id, name, location')
-        .order('name')
+      try {
+        const supabase = createClient()
+        
+        const { data, error } = await supabase
+          .from('dealerships')
+          .select('id, name, location')
+          .order('name')
 
-      if (error) {
-        console.error('Error fetching dealerships:', error)
-      } else {
-        setDealerships(data || [])
+        if (error) {
+          console.error('Error fetching dealerships:', error)
+          setError('Unable to load dealerships. Please contact support.')
+        } else {
+          setDealerships(data || [])
+          if (data && data.length === 0) {
+            setError('No dealerships available. Please contact support.')
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err)
+        setError('An unexpected error occurred. Please refresh the page.')
       }
     }
 
@@ -68,6 +78,8 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
+
+    const supabase = createClient()
 
     try {
       // Create auth user
@@ -108,7 +120,7 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
-          <div className="flex justify-center">
+          <div className="w-auto h-auto flex justify-center">
             <Image
               src="/ucg-logo.png"
               alt="UCG Logo"
