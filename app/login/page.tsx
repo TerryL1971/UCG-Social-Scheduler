@@ -1,103 +1,123 @@
-// app/login/page.tsx
+'use client'
 
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
-import { motion } from "framer-motion";
-
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardContent,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrorMsg("");
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
 
-    const result = await signIn("credentials", {
-      redirect: false,
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    if (result?.error) {
-      setErrorMsg("Invalid email or password.");
-      return;
+      if (error) throw error
+
+      // Check if user has a profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profileError) {
+        throw new Error('Profile not found. Please contact your administrator.')
+      }
+
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      const error = err as Error
+      setError(error.message || 'Failed to login')
+    } finally {
+      setLoading(false)
     }
-
-    router.push("/dashboard"); // Adjust if you have a different landing page
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-100 to-blue-300 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
-      >
-        <Card className="shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">
-              Login
-            </CardTitle>
-            <CardDescription className="text-center">
-              Enter your email and password to access your account.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <Image
+              src="/ucg-logo.png"
+              alt="UCG Logo"
+              width={120}
+              height={120}
+              className="object-contain"
+            />
+          </div>
+          <div className="text-center">
+            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+            <CardDescription>Sign in to your Social Scheduler account</CardDescription>
+          </div>
+        </CardHeader>
+        <form onSubmit={handleLogin}>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium text-gray-700">
+                Email
+              </label>
               <Input
+                id="email"
                 type="email"
-                placeholder="Email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={loading}
               />
-
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-sm font-medium text-gray-700">
+                Password
+              </label>
               <Input
+                id="password"
                 type="password"
-                placeholder="Password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={loading}
               />
-
-              {errorMsg && (
-                <p className="text-red-500 text-sm text-center">{errorMsg}</p>
-              )}
-
-              <Button type="submit" className="w-full">
-                Login
-              </Button>
-
-              <p className="text-center text-sm text-gray-600 mt-2">
-                Don’t have an account?{" "}
-                <a
-                  href="/register"
-                  className="text-blue-600 hover:underline font-medium"
-                >
-                  Register
-                </a>
-              </p>
-            </form>
+            </div>
           </CardContent>
-        </Card>
-      </motion.div>
+          <CardFooter className="flex flex-col space-y-4">
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Button>
+            <p className="text-sm text-center text-gray-600">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                Register here
+              </Link>
+            </p>
+          </CardFooter>
+        </form>
+      </Card>
     </div>
-  );
+  )
 }
