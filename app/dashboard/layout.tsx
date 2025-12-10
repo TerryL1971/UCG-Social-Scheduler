@@ -59,6 +59,7 @@ export default async function DashboardLayout({
             alt="UCG Logo"
             width={40}
             height={40}
+            style={{ width: 'auto', height: 'auto' }}
             className="object-contain"
           />
           <span className="ml-3 text-lg font-bold text-gray-900">UCG Scheduler</span>

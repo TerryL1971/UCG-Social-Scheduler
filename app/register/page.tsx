@@ -120,12 +120,13 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
-          <div className="w-auto h-auto flex justify-center">
+          <div className="flex justify-center">
             <Image
               src="/ucg-logo.png"
               alt="UCG Logo"
               width={120}
               height={120}
+              style={{ width: 'auto', height: '120px' }}
               className="object-contain"
             />
           </div>
