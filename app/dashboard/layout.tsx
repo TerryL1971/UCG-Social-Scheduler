@@ -1,4 +1,4 @@
-// app/app/dashboard/layout.tsx
+// app/dashboard/layout.tsx
 
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { redirect } from 'next/navigation'

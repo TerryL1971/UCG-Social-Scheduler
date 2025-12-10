@@ -1,3 +1,5 @@
+// lib/supabase.ts
+
 import { createBrowserClient } from '@supabase/ssr'
 
 // Browser client (for client components)
