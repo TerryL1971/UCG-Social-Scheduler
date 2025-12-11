@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       model: 'gemini-2.5-flash',
       generationConfig: {
         // High token limit to allow for 500+ word posts
-        maxOutputTokens: 1000,
+        maxOutputTokens: 5000,
         // FIX: Dropped temperature to 0.4 for maximum obedience and adherence to length/structure instructions.
         temperature: 0.4,
       }
