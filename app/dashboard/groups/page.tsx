@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,7 @@ export default function GroupsPage() {
   const [territories, setTerritories] = useState<Territory[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     facebook_url: '',
@@ -44,126 +45,195 @@ export default function GroupsPage() {
     best_time: '',
     notes: '',
   })
-  const supabase = createClient()
 
-  const fetchGroups = async () => {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) return
+  const fetchGroups = useCallback(async () => {
+    try {
+      setLoading(true)
+      setErrorMessage('')
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      console.log('Current user ID:', user?.id)
+      
+      if (!user) {
+        console.log('No user found')
+        setErrorMessage('Not authenticated')
+        return
+      }
 
-    const { data, error } = await supabase
-      .from('facebook_groups')
-      .select('*, territories(name)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+      const { data, error } = await supabase
+        .from('facebook_groups')
+        .select('*, territories(name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching groups:', error)
-    } else {
-      setGroups(data || [])
+      console.log('Groups query result:', { data, error, userID: user.id })
+
+      if (error) {
+        console.error('Error fetching groups:', error)
+        setErrorMessage(`Error: ${error.message || 'Unable to fetch groups'}`)
+      } else {
+        setGroups(data || [])
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      setErrorMessage('An unexpected error occurred')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [])
 
-  const fetchTerritories = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+  const fetchTerritories = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('dealership_id')
-      .eq('id', user.id)
-      .single()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('dealership_id')
+        .eq('id', user.id)
+        .single()
 
-    if (profile?.dealership_id) {
-      const { data } = await supabase
-        .from('territories')
-        .select('id, name')
-        .eq('dealership_id', profile.dealership_id)
-        .order('name')
+      if (profile?.dealership_id) {
+        const { data } = await supabase
+          .from('territories')
+          .select('id, name')
+          .eq('dealership_id', profile.dealership_id)
+          .order('name')
 
-      setTerritories(data || [])
+        setTerritories(data || [])
+      }
+    } catch (err) {
+      console.error('Error fetching territories:', err)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchGroups()
-    fetchTerritories()
-  }, [])
+    let mounted = true
+    
+    const loadData = async () => {
+      if (mounted) {
+        await fetchGroups()
+        await fetchTerritories()
+      }
+    }
+    
+    loadData()
+    
+    return () => {
+      mounted = false
+    }
+  }, [fetchGroups, fetchTerritories])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    const postingRules = {
-      max_posts_per_week: formData.max_posts_per_week ? parseInt(formData.max_posts_per_week) : undefined,
-      best_time: formData.best_time || undefined,
-      notes: formData.notes || undefined,
-    }
+      const postingRules = {
+        max_posts_per_week: formData.max_posts_per_week ? parseInt(formData.max_posts_per_week) : undefined,
+        best_time: formData.best_time || undefined,
+        notes: formData.notes || undefined,
+      }
 
-    const { error } = await supabase.from('facebook_groups').insert({
-      user_id: user.id,
-      name: formData.name,
-      facebook_url: formData.facebook_url || null,
-      description: formData.description || null,
-      member_count: formData.member_count ? parseInt(formData.member_count) : null,
-      territory_id: formData.territory_id || null,
-      posting_rules: postingRules,
-      is_active: true,
-    })
+      console.log('Inserting group with user_id:', user.id)
 
-    if (error) {
-      console.error('Error adding group:', error)
-      alert('Failed to add group')
-    } else {
-      setShowAddForm(false)
-      setFormData({
-        name: '',
-        facebook_url: '',
-        description: '',
-        member_count: '',
-        territory_id: '',
-        max_posts_per_week: '',
-        best_time: '',
-        notes: '',
-      })
-      fetchGroups()
+      const { data, error } = await supabase.from('facebook_groups').insert({
+        user_id: user.id,
+        name: formData.name,
+        facebook_url: formData.facebook_url || null,
+        description: formData.description || null,
+        member_count: formData.member_count ? parseInt(formData.member_count) : null,
+        territory_id: formData.territory_id || null,
+        posting_rules: postingRules,
+        is_active: true,
+      }).select()
+
+      console.log('Insert result:', { data, error })
+
+      if (error) {
+        console.error('Error adding group:', error)
+        alert('Failed to add group: ' + (error.message || 'Unknown error'))
+      } else {
+        setShowAddForm(false)
+        setFormData({
+          name: '',
+          facebook_url: '',
+          description: '',
+          member_count: '',
+          territory_id: '',
+          max_posts_per_week: '',
+          best_time: '',
+          notes: '',
+        })
+        await fetchGroups()
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      alert('An unexpected error occurred')
     }
   }
 
   const toggleGroupStatus = async (groupId: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from('facebook_groups')
-      .update({ is_active: !currentStatus })
-      .eq('id', groupId)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('facebook_groups')
+        .update({ is_active: !currentStatus })
+        .eq('id', groupId)
 
-    if (error) {
-      console.error('Error updating group:', error)
-    } else {
-      fetchGroups()
+      if (error) {
+        console.error('Error updating group:', error)
+        alert('Failed to update group')
+      } else {
+        await fetchGroups()
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
     }
   }
 
   const deleteGroup = async (groupId: string) => {
     if (!confirm('Are you sure you want to delete this group?')) return
 
-    const { error } = await supabase
-      .from('facebook_groups')
-      .delete()
-      .eq('id', groupId)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('facebook_groups')
+        .delete()
+        .eq('id', groupId)
 
-    if (error) {
-      console.error('Error deleting group:', error)
-    } else {
-      fetchGroups()
+      if (error) {
+        console.error('Error deleting group:', error)
+        alert('Failed to delete group')
+      } else {
+        await fetchGroups()
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
     }
   }
 
   if (loading) {
-    return <div>Loading groups...</div>
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Facebook Groups</h1>
+            <p className="text-gray-600 mt-1">Manage the groups you post to</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-gray-600">Loading groups...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -179,6 +249,18 @@ export default function GroupsPage() {
           Add Group
         </Button>
       </div>
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4">
+            <p className="text-red-800">{errorMessage}</p>
+            <p className="text-sm text-red-600 mt-2">
+              Check the browser console for more details (F12 or Cmd+Option+I)
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Group Form */}
       {showAddForm && (
@@ -236,7 +318,7 @@ export default function GroupsPage() {
                     onChange={(e) => setFormData({ ...formData, territory_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   >
-                    <option value="">Select territory</option>
+                    <option value="">Select territory (optional)</option>
                     {territories.map((territory) => (
                       <option key={territory.id} value={territory.id}>
                         {territory.name}
