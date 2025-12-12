@@ -1,28 +1,18 @@
-// app/api/posts/generate/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.GOOGLE_GEMINI_API_KEY) {
-      console.error('GOOGLE_GEMINI_API_KEY is not set')
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is not set')
       return NextResponse.json(
-        { error: 'Google Gemini API key not configured' },
+        { error: 'Claude API key not configured' },
         { status: 500 }
       )
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
-    const model = genAI.getGenerativeModel({ 
-      // Using gemini-2.5-flash to avoid quota issues
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        // High token limit to allow for 500+ word posts
-        maxOutputTokens: 5000,
-        // FIX: Dropped temperature to 0.4 for maximum obedience and adherence to length/structure instructions.
-        temperature: 0.4,
-      }
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
     })
 
     const body = await request.json()
@@ -34,51 +24,101 @@ export async function POST(request: NextRequest) {
       tone,
       groupName,
       groupDescription,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      groupRules,
     } = body
 
-    let groupContext = `This post is for the Facebook group "${groupName}".`
-    if (groupDescription) {
-      groupContext += ` Group description: ${groupDescription}.`
-    }
+    const prompt = `You are writing a Facebook advertisement for Used Car Guys Stuttgart, a military-focused dealership. Your posts are EXTREMELY emoji-heavy and visually engaging.
 
-    // FINAL PROMPT: Target length reinforced, maximum emphasis on writing the full post.
-    const prompt = `You are a social media marketing and sales expert. Your goal is to create an authentic, highly engaging, and descriptive Facebook advertisement post that drives immediate action.
+VEHICLE: ${productName}
+FEATURES: ${features}
+CALL TO ACTION: ${callToAction}
+TONE: ${tone} (but very enthusiastic with tons of emojis!)
+FACEBOOK GROUP: ${groupName}
+${groupDescription ? `GROUP INFO: ${groupDescription}` : ''}
 
-${groupContext}
+YOUR WRITING STYLE:
+- Use 50-70+ emojis throughout the post
+- Add emojis at the END of most sentences (✨🎉💙)
+- Use multiple emojis in a row (✨✨, 🚗🚗, 💙💙💙)
+- Be VERY enthusiastic and friendly
+- Write 600-900 words
 
---- DETAILS ---
-Product: ${productName}
-Features: ${features}
-Call to Action: ${callToAction}
-Tone: ${tone}
+STRUCTURE YOUR POST LIKE THIS:
 
---- INSTRUCTIONS ---
-1. Write a compelling, multi-paragraph post (target length: 300-500 words) using a ${tone} tone.
-2. Start with an attention-grabbing hook related to the vehicle.
-3. **Elaborate on the provided features** by dedicating at least one full paragraph to detailing the benefits (e.g., low miles = worry-free ownership, leather seats = premium comfort).
-4. Structure the post with clear paragraph breaks, ensuring the content is substantial and fully developed.
-5. Integrate emojis naturally to enhance readability and emotion.
-6. Place the Call to Action at the end.
-7. Absolutely No hashtags.
-8. **CRITICAL:** You MUST write the full requested length of 300-500 words. Do NOT stop early or self-truncate the response.`
+🚗✨ Check out this ${productName}! ✨🚗
 
-    console.log('Calling Gemini API with gemini-2.5-flash...')
-    const result = await model.generateContent(prompt)
-    const content = result.response.text()
+📱 Call or WhatsApp Terry: +49 151 6522 7520
+📧 Email: terry@usedcarguys.net
+💰 Financing available! 🎉
+
+[Write 2-3 enthusiastic opening sentences with emojis at the end]
+
+FEATURES:
+[Write 12-15 detailed bullet points, each starting with * and including emojis]
+Examples:
+* 🚗 Dual Motor All-Wheel Drive for superior traction ✨
+* 🔋 100% electric – zero emissions and low running costs 💚
+* 📱 Wireless phone charging and USB-C ports 💙
+[Continue with all the features from the list above]
+
+KEY SPECS:
+* 📏 Miles: [estimate based on vehicle]
+* ⚙️ Engine: [details based on vehicle type] 🔥
+* ✅ EU Specification With Buy Back Offer Guarantee 🎯
+
+💵 Price: Competitive pricing with financing options from $XXX/month including 1-year warranty! 🎉✨
+
+WHY CHOOSE USED CAR GUYS: 🌟🌟
+✅ Exclusively serving the Military since 2012 🇺🇸
+✅ Buy Back Offer Guarantee 🤝💙
+✅ 2-year warranty upgrade available 🛡️
+✅ We walk you through the entire process 👥✨
+✅ Top prices for trade-ins 💰🚗
+✅ We'll Buy It Back When You Leave ✈️
+✅ Guaranteed to Pass Military Inspection 🔍✅
+✅ Also Available Without SOFA Status 📋
+
+"The Closest Thing to a Leasing Program Overseas" 🌍✨
+
+${callToAction} 🎉
+
+📞 Contact Terry:
+📱 Tel/WhatsApp: +49 (0)151 6522 7520
+📧 Email: terry@usedcarguys.net
+
+Visit us at Robert-Bosch-Straße 6, 71101 Schönaich (right near Panzer Kaserne!) 🚗
+
+Come see us today! ✨🎉🚀
+
+CRITICAL REQUIREMENTS:
+- Write the FULL 600-900 words - do NOT stop early
+- Use 50-70+ emojis throughout
+- Add emojis to the end of most sentences
+- Use * for all bullet points
+- NO hashtags
+- Be extremely enthusiastic and emoji-heavy
+- Make it feel authentic and personal`
+
+    console.log('Calling Claude API...')
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      temperature: 0.7,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    })
+
+    const content = message.content[0].type === 'text' ? message.content[0].text : ''
     
-    // --- DIAGNOSTIC LOGGING ---
-    console.log('--- GENERATED CONTENT DIAGNOSTICS (SERVER) ---');
-    console.log('Total Character Length:', content.length);
-    // Log the first 150 characters to confirm content format
-    console.log('Start of Content:', content.substring(0, 150) + '...');
-    console.log('------------------------------------------------');
-    // --- END DIAGNOSTIC LOGGING ---
+    console.log('Claude generated:', content.length, 'characters')
 
     return NextResponse.json({ content })
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Claude API error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
