@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Use service role to bypass RLS
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 export async function POST(request: NextRequest) {
   try {
     const { postId } = await request.json()
-
-    const supabase = await createServerSupabaseClient()
 
     // Get the scheduled post with user and group info
     const { data: post, error: postError } = await supabase
@@ -22,6 +32,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (postError || !post) {
+      console.error('Error fetching post:', postError)
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
@@ -37,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Send email
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: 'UCG Social Scheduler <onboarding@resend.dev>', // Change to your domain
+      from: 'UCG Social Scheduler <tcl71771@yahoo.com>',
       to: userEmail,
       subject: `⏰ Time to Post to ${groupName}!`,
       html: `
@@ -81,11 +92,8 @@ export async function POST(request: NextRequest) {
                 </ol>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.NEXTAUTH_URL}/dashboard/posts/${postId}/mark-posted" class="button">
-                    ✅ Mark as Posted
-                  </a>
-                  <a href="${process.env.NEXTAUTH_URL}/dashboard/posts" class="button secondary-button">
-                    View All Posts
+                  <a href="${process.env.NEXTAUTH_URL}/dashboard/posts" class="button">
+                    ✅ View Dashboard
                   </a>
                 </div>
               </div>

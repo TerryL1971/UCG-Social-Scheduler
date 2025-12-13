@@ -1,3 +1,5 @@
+// app/api/posts/generate/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -26,77 +28,93 @@ export async function POST(request: NextRequest) {
       groupDescription,
     } = body
 
-    const prompt = `You are writing a Facebook advertisement for Used Car Guys Stuttgart, a military-focused dealership. Your posts are EXTREMELY emoji-heavy and visually engaging.
+    const prompt = `You are writing a Facebook ad for Used Car Guys Stuttgart. Your posts are EXTREMELY emoji-heavy and visually engaging!
 
 VEHICLE: ${productName}
 FEATURES: ${features}
-CALL TO ACTION: ${callToAction}
-TONE: ${tone} (but very enthusiastic with tons of emojis!)
-FACEBOOK GROUP: ${groupName}
-${groupDescription ? `GROUP INFO: ${groupDescription}` : ''}
+TONE: ${tone} - but VERY enthusiastic with TONS of emojis!
+GROUP: ${groupName}
+${groupDescription ? `INFO: ${groupDescription}` : ''}
 
-YOUR WRITING STYLE:
-- Use 50-70+ emojis throughout the post
-- Add emojis at the END of most sentences (✨🎉💙)
+EMOJI RULES - USE 50-70 EMOJIS:
+- Add emojis at END of almost every sentence 🎉
 - Use multiple emojis in a row (✨✨, 🚗🚗, 💙💙💙)
-- Be VERY enthusiastic and friendly
-- Write 600-900 words
+- Emojis as visual separators
+- MORE emojis is better!
 
-STRUCTURE YOUR POST LIKE THIS:
+FREQUENT EMOJIS: 🚗 🏎️ ✨ 🎉 😊 😃 🥳 💙 ❤️ 💚 🔥 ⚡ 🌟 💫 ⭐ 👀 👍 👏 🙌 💪 🔑 💯 ✅ 🎯 🚀 💰 💵 🤝 🛡️ 🔒 📱 💻 🎵 🎨 🪑 🌈 🎊 🔋 📞 📧 🌍 ✈️ 🇺🇸
+
+CRITICAL FORMATTING:
+- Add TWO line breaks between major sections (use \\n\\n)
+- Add ONE line break between bullet points
+- Make it readable with clear paragraph separation
+
+STRUCTURE:
 
 🚗✨ Check out this ${productName}! ✨🚗
 
-📱 Call or WhatsApp Terry: +49 151 6522 7520
+📱 Call/WhatsApp Terry: +49 151 6522 7520
 📧 Email: terry@usedcarguys.net
-💰 Financing available! 🎉
+💰 Payments available! 🎉
 
-[Write 2-3 enthusiastic opening sentences with emojis at the end]
+[2-3 enthusiastic sentences with emojis] ✨
+
+[BLANK LINE HERE]
 
 FEATURES:
-[Write 12-15 detailed bullet points, each starting with * and including emojis]
-Examples:
-* 🚗 Dual Motor All-Wheel Drive for superior traction ✨
-* 🔋 100% electric – zero emissions and low running costs 💚
-* 📱 Wireless phone charging and USB-C ports 💙
-[Continue with all the features from the list above]
+* 🚗 [Feature] ✨
+* ⚡ [Feature] 💙
+* 🔒 [Feature] 🛡️
+[12-15 bullets - each with emojis]
+
+[BLANK LINE HERE]
 
 KEY SPECS:
-* 📏 Miles: [estimate based on vehicle]
-* ⚙️ Engine: [details based on vehicle type] 🔥
-* ✅ EU Specification With Buy Back Offer Guarantee 🎯
+* 📏 Miles: XX,XXX ✨
+* ⚙️ Engine: [details] 🔥
+* ✅ EU Spec With Buy Back Guarantee 🎯
 
-💵 Price: Competitive pricing with financing options from $XXX/month including 1-year warranty! 🎉✨
+[BLANK LINE HERE]
 
-WHY CHOOSE USED CAR GUYS: 🌟🌟
-✅ Exclusively serving the Military since 2012 🇺🇸
-✅ Buy Back Offer Guarantee 🤝💙
-✅ 2-year warranty upgrade available 🛡️
-✅ We walk you through the entire process 👥✨
-✅ Top prices for trade-ins 💰🚗
-✅ We'll Buy It Back When You Leave ✈️
-✅ Guaranteed to Pass Military Inspection 🔍✅
-✅ Also Available Without SOFA Status 📋
+💵 Price: $XX,XXX or payments from $XXX + 1yr warranty! 🎉✨
 
-"The Closest Thing to a Leasing Program Overseas" 🌍✨
+[BLANK LINE HERE]
+
+[Write 2-3 paragraphs about the vehicle with emojis, separated by blank lines]
+
+[BLANK LINE HERE]
+
+WHY CHOOSE US: 🌟
+✅ Serving Military since 2012 🇺🇸
+✅ Buy Back Guarantee 🤝💙
+✅ 2yr warranty available 🛡️
+✅ We guide you through everything 👥✨
+✅ Top trade-in prices 💰🚗
+✅ Buy It Back When You Leave ✈️
+✅ Military Inspection Guaranteed 🔍✅
+✅ No SOFA Status needed 📋
+
+[BLANK LINE HERE]
+
+"Closest Thing to Leasing Overseas" 🌍✨
 
 ${callToAction} 🎉
 
+[BLANK LINE HERE]
+
 📞 Contact Terry:
-📱 Tel/WhatsApp: +49 (0)151 6522 7520
-📧 Email: terry@usedcarguys.net
+📱 +49 151 6522 7520
+📧 terry@usedcarguys.net
 
 Visit us at Robert-Bosch-Straße 6, 71101 Schönaich (right near Panzer Kaserne!) 🚗
 
-Come see us today! ✨🎉🚀
+Come see us today! 🚗✨🎉
 
-CRITICAL REQUIREMENTS:
-- Write the FULL 600-900 words - do NOT stop early
-- Use 50-70+ emojis throughout
-- Add emojis to the end of most sentences
-- Use * for all bullet points
-- NO hashtags
-- Be extremely enthusiastic and emoji-heavy
-- Make it feel authentic and personal`
+REQUIREMENTS:
+- 600-900 words
+- 50-70+ emojis minimum
+- Add \\n\\n between paragraphs for readability
+- VERY enthusiastic! 🎉✨🚀`
 
     console.log('Calling Claude API...')
 
