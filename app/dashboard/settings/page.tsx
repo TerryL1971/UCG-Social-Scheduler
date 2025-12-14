@@ -2,324 +2,246 @@
 
 'use client'
 
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useEffect, useState } from 'react'
-import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Bell, User, Save, CheckCircle } from 'lucide-react'
-
-const AVAILABLE_ROLES = [
-  { value: 'salesperson', label: 'Salesperson' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'buyer', label: 'Buyer' },
-  { value: 'marketer', label: 'Marketer' },
-]
-
-type Profile = {
-  id: string
-  email: string
-  full_name: string | null
-  role: string
-}
-
-type NotificationSettings = {
-  email_enabled: boolean
-  notification_lead_time: number
-  quiet_hours_start: string | null
-  quiet_hours_end: string | null
-}
+import { Bell, Mail, User, Save, CheckCircle, Loader2 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
-    email_enabled: false,
-    notification_lead_time: 15,
-    quiet_hours_start: null,
-    quiet_hours_end: null
-  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [emailNotifications, setEmailNotifications] = useState(true)
+
   const supabase = createClient()
 
   useEffect(() => {
-    const fetchData = async () => {
+    async function loadUserData() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        redirect('/login')
-        return
+      if (user) {
+        setEmail(user.email || '')
+        setFullName((user.user_metadata?.full_name as string) || '')
+        setEmailNotifications(user.user_metadata?.email_notifications !== false)
       }
-
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (profileData) {
-        setProfile(profileData)
-      }
-
-      // Fetch notification settings
-      const { data: settingsData } = await supabase
-        .from('notification_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-
-      if (settingsData) {
-        setNotificationSettings({
-          email_enabled: settingsData.email_enabled ?? false,
-          notification_lead_time: settingsData.notification_lead_time ?? 15,
-          quiet_hours_start: settingsData.quiet_hours_start ?? null,
-          quiet_hours_end: settingsData.quiet_hours_end ?? null
-        })
-      }
-
       setLoading(false)
     }
-
-    fetchData()
+    loadUserData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSave = async () => {
-    if (!profile) return
-    
     setSaving(true)
-    setSaved(false)
-
-    // Update profile
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({
-        full_name: profile.full_name,
-        role: profile.role,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', profile.id)
-
-    // Upsert notification settings (insert if doesn't exist, update if it does)
-    const { error: settingsError } = await supabase
-      .from('notification_settings')
-      .upsert({
-        user_id: profile.id,
-        email_enabled: notificationSettings.email_enabled,
-        notification_lead_time: notificationSettings.notification_lead_time,
-        quiet_hours_start: notificationSettings.quiet_hours_start,
-        quiet_hours_end: notificationSettings.quiet_hours_end
-      }, {
-        onConflict: 'user_id'
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          email_notifications: emailNotifications
+        }
       })
 
-    if (profileError || settingsError) {
-      console.error('Profile error:', profileError)
-      console.error('Settings error:', settingsError)
-      alert('Failed to save settings: ' + (profileError?.message || settingsError?.message))
-    } else {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      if (error) throw error
+
+      alert('Settings saved successfully!')
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      alert('Failed to save settings')
+    } finally {
+      setSaving(false)
     }
+  }
 
-    setSaving(false)
+  const handleTestEmail = async () => {
+    setTestingEmail(true)
+    setEmailSent(false)
+    
+    try {
+      const response = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setEmailSent(true)
+        setTimeout(() => setEmailSent(false), 5000)
+      } else {
+        alert(`Failed to send test email: ${data.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Test email error:', error)
+      alert('Failed to send test email. Check console for details.')
+    } finally {
+      setTestingEmail(false)
+    }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-96">Loading...</div>
-  }
-
-  if (!profile) {
-    return <div className="flex items-center justify-center min-h-96">Profile not found</div>
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your account preferences</p>
+        <p className="text-gray-600 mt-1">Manage your account and notification preferences</p>
       </div>
 
-      {/* Profile Settings */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <User className="w-5 h-5 mr-2" />
-            Profile Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <Input
-              type="email"
-              value={profile.email}
-              disabled
-              className="bg-gray-50"
-            />
-            <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+        <CardContent className="p-6">
+          <div className="flex items-center mb-6">
+            <User className="w-5 h-5 mr-2 text-purple-600" />
+            <h2 className="text-xl font-semibold">Profile Information</h2>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Full Name
-            </label>
-            <Input
-              type="text"
-              value={profile.full_name || ''}
-              onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-              placeholder="Enter your full name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Role
-            </label>
-            <select
-              value={profile.role}
-              onChange={(e) => setProfile({ ...profile, role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {AVAILABLE_ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Select your role in the organization
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notification Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Bell className="w-5 h-5 mr-2" />
-            Email Notifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">
             <div>
-              <p className="font-medium text-gray-900">Enable Email Notifications</p>
-              <p className="text-sm text-gray-600">
-                Receive email reminders about upcoming scheduled posts
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
+              <Input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
+              </label>
+              <Input
+                type="email"
+                value={email}
+                disabled
+                className="bg-gray-50"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Email cannot be changed here. Contact support if needed.
               </p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.email_enabled}
-                onChange={(e) => setNotificationSettings({
-                  ...notificationSettings,
-                  email_enabled: e.target.checked
-                })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
           </div>
-
-          {notificationSettings.email_enabled && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notification Lead Time
-                </label>
-                <select
-                  value={notificationSettings.notification_lead_time}
-                  onChange={(e) => setNotificationSettings({
-                    ...notificationSettings,
-                    notification_lead_time: parseInt(e.target.value)
-                  })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="15">15 minutes before</option>
-                  <option value="30">30 minutes before</option>
-                  <option value="60">1 hour before</option>
-                  <option value="120">2 hours before</option>
-                  <option value="1440">1 day before</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  How far in advance should we notify you?
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Quiet Hours (Optional)
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Start Time</label>
-                    <Input
-                      type="time"
-                      value={notificationSettings.quiet_hours_start || ''}
-                      onChange={(e) => setNotificationSettings({
-                        ...notificationSettings,
-                        quiet_hours_start: e.target.value || null
-                      })}
-                      placeholder="22:00"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">End Time</label>
-                    <Input
-                      type="time"
-                      value={notificationSettings.quiet_hours_end || ''}
-                      onChange={(e) => setNotificationSettings({
-                        ...notificationSettings,
-                        quiet_hours_end: e.target.value || null
-                      })}
-                      placeholder="08:00"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Don&apos;t send notifications during these hours
-                </p>
-              </div>
-            </>
-          )}
         </CardContent>
       </Card>
 
-      {/* Save Button */}
-      <div className="flex items-center space-x-3">
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center mb-6">
+            <Bell className="w-5 h-5 mr-2 text-purple-600" />
+            <h2 className="text-xl font-semibold">Email Notifications</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-start space-x-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <input
+                type="checkbox"
+                id="emailNotifications"
+                checked={emailNotifications}
+                onChange={(e) => setEmailNotifications(e.target.checked)}
+                className="mt-1 w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+              />
+              <div className="flex-1">
+                <label 
+                  htmlFor="emailNotifications" 
+                  className="text-sm font-medium text-gray-900 cursor-pointer"
+                >
+                  Send me email reminders for scheduled posts
+                </label>
+                <p className="text-xs text-gray-600 mt-1">
+                  You will receive an email 1 hour before your scheduled post time
+                </p>
+              </div>
+            </div>
+
+            {emailNotifications && (
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-start">
+                  <Mail className="w-5 h-5 text-green-600 mr-3 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-green-900 mb-2">
+                      Email notifications are enabled
+                    </p>
+                    <p className="text-xs text-green-700 mb-3">
+                      Test your email setup to make sure notifications are working correctly.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={handleTestEmail}
+                      disabled={testingEmail || emailSent}
+                      variant="outline"
+                      className="bg-white hover:bg-green-50 border-green-300"
+                    >
+                      {testingEmail ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : emailSent ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                          Email Sent! Check Your Inbox
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-4 h-4 mr-2" />
+                          Send Test Email
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="min-w-32"
+          size="lg"
         >
           {saving ? (
-            'Saving...'
-          ) : saved ? (
             <>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Saved!
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Saving...
             </>
           ) : (
             <>
               <Save className="w-4 h-4 mr-2" />
-              Save Changes
+              Save Settings
             </>
           )}
         </Button>
-        {saved && (
-          <p className="text-sm text-green-600">
-            Your settings have been saved successfully
-          </p>
-        )}
       </div>
+
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-start">
+            <Bell className="w-5 h-5 text-blue-600 mr-3 mt-0.5" />
+            <div className="text-sm text-blue-900">
+              <p className="font-medium mb-1">How email notifications work:</p>
+              <ul className="list-disc list-inside space-y-1 text-blue-800">
+                <li>Notifications are sent 1 hour before your scheduled post time</li>
+                <li>You will receive a reminder with the post content and group name</li>
+                <li>Each post only sends one reminder email</li>
+                <li>Make sure to check your spam folder if you do not see the email</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

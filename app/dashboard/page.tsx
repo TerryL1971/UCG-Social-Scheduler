@@ -1,276 +1,347 @@
 // app/dashboard/page.tsx
 
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+'use client'
+
+import { createClient } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Calendar, Users, CheckCircle, Clock, ArrowRight } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Calendar, Plus, CheckCircle, Clock, Copy, Check, Edit, Trash2, Save, X, AlertTriangle } from 'lucide-react'
 
-export default async function DashboardPage() {
-  const supabase = await createServerSupabaseClient()
+type ScheduledPost = {
+  id: string
+  generated_content: string
+  scheduled_for: string
+  status: string
+  facebook_groups: { name: string } | null
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function PostsPage() {
+  const [posts, setPosts] = useState<ScheduledPost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const supabase = createClient()
 
-  if (!user) {
-    redirect('/login')
+  const fetchPosts = async () => {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      redirect('/login')
+      return
+    }
+
+    const { data } = await supabase
+      .from('scheduled_posts')
+      .select('*, facebook_groups(name)')
+      .eq('user_id', user.id)
+      .order('scheduled_for', { ascending: true })
+
+    setPosts(data || [])
+    setLoading(false)
   }
 
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*, dealerships(name, location)')
-    .eq('id', user.id)
-    .single()
+  useEffect(() => {
+    fetchPosts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Get stats
-  const { count: groupsCount } = await supabase
-    .from('facebook_groups')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('is_active', true)
+  const markAsPosted = async (postId: string) => {
+    const { error } = await supabase
+      .from('scheduled_posts')
+      .update({ 
+        status: 'posted',
+        posted_at: new Date().toISOString()
+      })
+      .eq('id', postId)
 
-  const { count: scheduledCount } = await supabase
-    .from('scheduled_posts')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .in('status', ['pending', 'ready'])
+    if (error) {
+      alert('Failed to update post status')
+    } else {
+      const post = posts.find(p => p.id === postId)
+      if (post) {
+        const { data: { user } } = await supabase.auth.getUser()
+        const groupData = post.facebook_groups as { name: string } | null
+        
+        await supabase.from('post_history').insert({
+          scheduled_post_id: postId,
+          user_id: user?.id,
+          group_id: groupData ? postId : null,
+          content: post.generated_content,
+          posted_at: new Date().toISOString()
+        })
+      }
+      fetchPosts()
+    }
+  }
 
-  // Calculate date for posts this week (7 days ago)
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const deletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return
 
-  const { count: postedThisWeek } = await supabase
-    .from('post_history')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .gte('posted_at', sevenDaysAgo.toISOString())
+    const { error } = await supabase
+      .from('scheduled_posts')
+      .delete()
+      .eq('id', postId)
 
-  // Get upcoming posts
-  const { data: upcomingPosts } = await supabase
-    .from('scheduled_posts')
-    .select('*, facebook_groups(name)')
-    .eq('user_id', user.id)
-    .in('status', ['pending', 'ready'])
-    .order('scheduled_for', { ascending: true })
-    .limit(5)
+    if (error) {
+      alert('Failed to delete post')
+    } else {
+      fetchPosts()
+    }
+  }
+
+  const startEdit = (postId: string, content: string) => {
+    setEditingId(postId)
+    setEditContent(content)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditContent('')
+  }
+
+  const saveEdit = async (postId: string) => {
+    const { error } = await supabase
+      .from('scheduled_posts')
+      .update({ generated_content: editContent })
+      .eq('id', postId)
+
+    if (error) {
+      alert('Failed to save changes')
+    } else {
+      setEditingId(null)
+      setEditContent('')
+      fetchPosts()
+    }
+  }
+
+  const copyToClipboard = async (content: string, postId: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedId(postId)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const getPostStatus = (post: ScheduledPost) => {
+    const scheduledDate = new Date(post.scheduled_for)
+    const now = new Date()
+    
+    if (post.status === 'posted') {
+      return { label: '✅ Posted', color: 'bg-green-100 text-green-800', isOverdue: false }
+    }
+    
+    if (scheduledDate < now) {
+      return { label: '⚠️ Overdue', color: 'bg-red-100 text-red-800', isOverdue: true }
+    }
+    
+    if (post.status === 'ready') {
+      return { label: '🔔 Ready', color: 'bg-blue-100 text-blue-800', isOverdue: false }
+    }
+    
+    return { label: '⏰ Pending', color: 'bg-yellow-100 text-yellow-800', isOverdue: false }
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-96">Loading...</div>
+  }
+
+  const pendingPosts = posts.filter(p => p.status === 'pending' || p.status === 'ready' || getPostStatus(p).isOverdue)
+  const completedPosts = posts.filter(p => p.status === 'posted')
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Scheduled Posts</h1>
+          <p className="text-gray-600 mt-1">Manage your upcoming social media posts</p>
+        </div>
+        <div className="flex space-x-3">
+          <Link href="/dashboard/posts/history">
+            <Button variant="outline">
+              <Calendar className="w-4 h-4 mr-2" />
+              Post History
+            </Button>
+          </Link>
+          <Link href="/dashboard/posts/create">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Post
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Pending/Overdue Posts */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {profile?.full_name || 'User'}!
-        </h1>
-        <p className="text-gray-600 mt-1">
-          {profile?.dealerships?.name
-            ? `${profile.dealerships.name}${
-                profile.dealerships.location
-                  ? ` - ${profile.dealerships.location}`
-                  : ''
-              } • `
-            : ''}
-          Here&apos;s what&apos;s happening with your posts
-        </p>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Scheduled Posts
-            </CardTitle>
-            <Clock className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">{scheduledCount || 0}</div>
-            <p className="text-sm text-gray-500 mt-1">Ready to post</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Active Groups
-            </CardTitle>
-            <Users className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">{groupsCount || 0}</div>
-            <p className="text-sm text-gray-500 mt-1">Facebook groups</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Posts This Week
-            </CardTitle>
-            <CheckCircle className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">{postedThisWeek || 0}</div>
-            <p className="text-sm text-gray-500 mt-1">Completed</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Completion Rate
-            </CardTitle>
-            <Calendar className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">0%</div>
-            <p className="text-sm text-gray-500 mt-1">Last 30 days</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Upcoming Posts */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Upcoming Posts</CardTitle>
-                <CardDescription>Your next scheduled posts</CardDescription>
-              </div>
-              <Link href="/dashboard/posts">
-                <Button variant="outline" size="sm">
-                  View All
-                  <ArrowRight className="w-4 h-4 ml-2" />
+        <h2 className="text-xl font-semibold mb-4 flex items-center">
+          <Clock className="w-5 h-5 mr-2 text-yellow-600" />
+          Upcoming & Overdue Posts ({pendingPosts.length})
+        </h2>
+        {pendingPosts.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No scheduled posts</h3>
+              <p className="text-gray-600 mb-4">Create your first post to get started</p>
+              <Link href="/dashboard/posts/create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Post
                 </Button>
               </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {upcomingPosts && upcomingPosts.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingPosts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="flex items-start justify-between p-4 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">
-                        {post.facebook_groups?.name || 'Unknown Group'}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                        {post.generated_content}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        {new Date(post.scheduled_for).toLocaleString()}
-                      </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {pendingPosts.map((post) => {
+              const status = getPostStatus(post)
+              const isEditing = editingId === post.id
+              
+              return (
+                <Card key={post.id} className={status.isOverdue ? 'border-red-300' : ''}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold text-gray-900 mb-1">
+                            {post.facebook_groups?.name || 'Unknown Group'}
+                          </h3>
+                          {status.isOverdue && <AlertTriangle className="w-5 h-5 text-red-600" />}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          📅 {new Date(post.scheduled_for).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                        {status.label}
+                      </span>
                     </div>
-                    <span
-                      className={`px-2 py-1 text-xs font-medium rounded ${
-                        post.status === 'ready'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
-                    >
-                      {post.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-4">No scheduled posts yet</p>
-                <Link href="/dashboard/posts/create">
-                  <Button>Schedule Your First Post</Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    
+                    {isEditing ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg min-h-48"
+                        />
+                        <div className="flex space-x-2">
+                          <Button size="sm" onClick={() => saveEdit(post.id)}>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Changes
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
+                            <X className="w-4 h-4 mr-2" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            {post.generated_content}
+                          </p>
+                        </div>
 
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Get started quickly</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Link href="/dashboard/posts/create" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <Calendar className="w-4 h-4 mr-2" />
-                Create New Post
-              </Button>
-            </Link>
-            <Link href="/dashboard/groups" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <Users className="w-4 h-4 mr-2" />
-                Manage Groups
-              </Button>
-            </Link>
-            <Link href="/dashboard/templates" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <CheckCircle className="w-4 h-4 mr-2" />
-                View Templates
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+                        <div className="flex flex-wrap gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => copyToClipboard(post.generated_content, post.id)}
+                          >
+                            {copiedId === post.id ? (
+                              <>
+                                <Check className="w-4 h-4 mr-2" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-2" />
+                                Copy
+                              </>
+                            )}
+                          </Button>
+                          
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startEdit(post.id, post.generated_content)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+
+                          <Button 
+                            size="sm"
+                            onClick={() => markAsPosted(post.id)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Mark as Posted
+                          </Button>
+
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deletePost(post.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Getting Started Guide (only show if no groups) */}
-      {groupsCount === 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Getting Started</CardTitle>
-            <CardDescription>
-              Set up your social media scheduler in a few simple steps
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-start space-x-3">
-              <div className="shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">
-                1
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900">Add Facebook Groups</h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  Import the groups you want to post to
-                </p>
-                <Link href="/dashboard/groups">
-                  <Button size="sm">Add Groups</Button>
-                </Link>
-              </div>
+      {/* Completed Posts */}
+      {completedPosts.length > 0 && (
+        <div>
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <CheckCircle className="w-5 h-5 mr-2 text-green-600" />
+            Completed Posts ({completedPosts.length})
+          </h2>
+          <div className="grid grid-cols-1 gap-4">
+            {completedPosts.slice(0, 5).map((post) => (
+              <Card key={post.id} className="opacity-75">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        {post.facebook_groups?.name || 'Unknown Group'}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        ✅ Posted on {new Date(post.scheduled_for).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      ✅ Posted
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {completedPosts.length > 5 && (
+            <div className="text-center mt-4">
+              <Link href="/dashboard/posts/history">
+                <Button variant="outline">View All Completed Posts</Button>
+              </Link>
             </div>
-
-            <div className="flex items-start space-x-3">
-              <div className="shrink-0 w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold">
-                2
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900">Create Post Templates</h3>
-                <p className="text-sm text-gray-600">
-                  Build reusable ad templates with AI assistance
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-3">
-              <div className="shrink-0 w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold">
-                3
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900">Schedule Your Posts</h3>
-                <p className="text-sm text-gray-600">
-                  Set up automated reminders to post at the right time
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
     </div>
   )
