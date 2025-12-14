@@ -33,7 +33,7 @@ export default async function DashboardLayout({
   // Get user profile with role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, dealerships(name)')
+    .select('*, dealerships(name, location)')
     .eq('id', user.id)
     .single()
 
@@ -93,7 +93,9 @@ export default async function DashboardLayout({
                 {profile?.full_name || 'User'}
               </p>
               <p className="text-xs text-gray-500 truncate">
-                {profile?.dealerships?.name || 'No dealership'}
+                {profile?.dealerships
+                  ? `${profile.dealerships.name} - ${profile.dealerships.location}`
+                  : 'No dealership'}
               </p>
             </div>
           </div>

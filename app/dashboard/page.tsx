@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   // Get user profile
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, dealerships(name)')
+    .select('*, dealerships(name, location)')
     .eq('id', user.id)
     .single()
 
@@ -65,7 +65,13 @@ export default async function DashboardPage() {
           Welcome back, {profile?.full_name || 'User'}!
         </h1>
         <p className="text-gray-600 mt-1">
-          {profile?.dealerships?.name && `${profile.dealerships.name} • `}
+          {profile?.dealerships?.name
+            ? `${profile.dealerships.name}${
+                profile.dealerships.location
+                  ? ` - ${profile.dealerships.location}`
+                  : ''
+              } • `
+            : ''}
           Here&apos;s what&apos;s happening with your posts
         </p>
       </div>
