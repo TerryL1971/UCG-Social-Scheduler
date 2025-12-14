@@ -1,3 +1,5 @@
+// app/api/notifications/send/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createServerSupabaseClient } from '@/lib/supabase-server'

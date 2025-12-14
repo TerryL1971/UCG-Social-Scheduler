@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Calendar, Plus, CheckCircle, Clock, Copy, Check } from 'lucide-react'
+import { Calendar, Plus, CheckCircle, Clock, Copy, Check, Edit, Trash2, Save, X, AlertTriangle } from 'lucide-react'
 
 type ScheduledPost = {
   id: string
@@ -22,6 +22,8 @@ export default function PostsPage() {
   const [posts, setPosts] = useState<ScheduledPost[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
   const supabase = createClient()
 
   const fetchPosts = async () => {
@@ -59,7 +61,6 @@ export default function PostsPage() {
     if (error) {
       alert('Failed to update post status')
     } else {
-      // Also add to post_history
       const post = posts.find(p => p.id === postId)
       if (post) {
         const { data: { user } } = await supabase.auth.getUser()
@@ -77,6 +78,46 @@ export default function PostsPage() {
     }
   }
 
+  const deletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return
+
+    const { error } = await supabase
+      .from('scheduled_posts')
+      .delete()
+      .eq('id', postId)
+
+    if (error) {
+      alert('Failed to delete post')
+    } else {
+      fetchPosts()
+    }
+  }
+
+  const startEdit = (postId: string, content: string) => {
+    setEditingId(postId)
+    setEditContent(content)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditContent('')
+  }
+
+  const saveEdit = async (postId: string) => {
+    const { error } = await supabase
+      .from('scheduled_posts')
+      .update({ generated_content: editContent })
+      .eq('id', postId)
+
+    if (error) {
+      alert('Failed to save changes')
+    } else {
+      setEditingId(null)
+      setEditContent('')
+      fetchPosts()
+    }
+  }
+
   const copyToClipboard = async (content: string, postId: string) => {
     try {
       await navigator.clipboard.writeText(content)
@@ -87,11 +128,30 @@ export default function PostsPage() {
     }
   }
 
+  const getPostStatus = (post: ScheduledPost) => {
+    const scheduledDate = new Date(post.scheduled_for)
+    const now = new Date()
+    
+    if (post.status === 'posted') {
+      return { label: '✅ Posted', color: 'bg-green-100 text-green-800', isOverdue: false }
+    }
+    
+    if (scheduledDate < now) {
+      return { label: '⚠️ Overdue', color: 'bg-red-100 text-red-800', isOverdue: true }
+    }
+    
+    if (post.status === 'ready') {
+      return { label: '🔔 Ready', color: 'bg-blue-100 text-blue-800', isOverdue: false }
+    }
+    
+    return { label: '⏰ Pending', color: 'bg-yellow-100 text-yellow-800', isOverdue: false }
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-96">Loading...</div>
   }
 
-  const pendingPosts = posts.filter(p => p.status === 'pending' || p.status === 'ready')
+  const pendingPosts = posts.filter(p => p.status === 'pending' || p.status === 'ready' || getPostStatus(p).isOverdue)
   const completedPosts = posts.filter(p => p.status === 'posted')
 
   return (
@@ -101,19 +161,27 @@ export default function PostsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Scheduled Posts</h1>
           <p className="text-gray-600 mt-1">Manage your upcoming social media posts</p>
         </div>
-        <Link href="/dashboard/posts/create">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Create Post
-          </Button>
-        </Link>
+        <div className="flex space-x-3">
+          <Link href="/dashboard/posts/history">
+            <Button variant="outline">
+              <Calendar className="w-4 h-4 mr-2" />
+              Post History
+            </Button>
+          </Link>
+          <Link href="/dashboard/posts/create">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Post
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Pending Posts */}
+      {/* Pending/Overdue Posts */}
       <div>
         <h2 className="text-xl font-semibold mb-4 flex items-center">
           <Clock className="w-5 h-5 mr-2 text-yellow-600" />
-          Upcoming Posts ({pendingPosts.length})
+          Upcoming & Overdue Posts ({pendingPosts.length})
         </h2>
         {pendingPosts.length === 0 ? (
           <Card>
@@ -131,61 +199,109 @@ export default function PostsPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {pendingPosts.map((post) => (
-              <Card key={post.id}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">
-                        {post.facebook_groups?.name || 'Unknown Group'}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        📅 {new Date(post.scheduled_for).toLocaleString()}
-                      </p>
+            {pendingPosts.map((post) => {
+              const status = getPostStatus(post)
+              const isEditing = editingId === post.id
+              
+              return (
+                <Card key={post.id} className={status.isOverdue ? 'border-red-300' : ''}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold text-gray-900 mb-1">
+                            {post.facebook_groups?.name || 'Unknown Group'}
+                          </h3>
+                          {status.isOverdue && <AlertTriangle className="w-5 h-5 text-red-600" />}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          📅 {new Date(post.scheduled_for).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                        {status.label}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                      post.status === 'ready' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {post.status === 'ready' ? '🔔 Ready' : '⏰ Pending'}
-                    </span>
-                  </div>
-                  
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {post.generated_content}
-                    </p>
-                  </div>
+                    
+                    {isEditing ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg min-h-48"
+                        />
+                        <div className="flex space-x-2">
+                          <Button size="sm" onClick={() => saveEdit(post.id)}>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Changes
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
+                            <X className="w-4 h-4 mr-2" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            {post.generated_content}
+                          </p>
+                        </div>
 
-                  <div className="flex space-x-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => copyToClipboard(post.generated_content, post.id)}
-                    >
-                      {copiedId === post.id ? (
-                        <>
-                          <Check className="w-4 h-4 mr-2" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Copy
-                        </>
-                      )}
-                    </Button>
-                    <Button 
-                      size="sm"
-                      onClick={() => markAsPosted(post.id)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Mark as Posted
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                        <div className="flex flex-wrap gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => copyToClipboard(post.generated_content, post.id)}
+                          >
+                            {copiedId === post.id ? (
+                              <>
+                                <Check className="w-4 h-4 mr-2" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-2" />
+                                Copy
+                              </>
+                            )}
+                          </Button>
+                          
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startEdit(post.id, post.generated_content)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+
+                          <Button 
+                            size="sm"
+                            onClick={() => markAsPosted(post.id)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Mark as Posted
+                          </Button>
+
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deletePost(post.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -198,7 +314,7 @@ export default function PostsPage() {
             Completed Posts ({completedPosts.length})
           </h2>
           <div className="grid grid-cols-1 gap-4">
-            {completedPosts.map((post) => (
+            {completedPosts.slice(0, 5).map((post) => (
               <Card key={post.id} className="opacity-75">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
@@ -218,6 +334,13 @@ export default function PostsPage() {
               </Card>
             ))}
           </div>
+          {completedPosts.length > 5 && (
+            <div className="text-center mt-4">
+              <Link href="/dashboard/posts/history">
+                <Button variant="outline">View All Completed Posts</Button>
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </div>

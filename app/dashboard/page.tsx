@@ -1,3 +1,5 @@
+// app/dashboard/page.tsx
+
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -36,11 +38,15 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .in('status', ['pending', 'ready'])
 
+  // Calculate date for posts this week (7 days ago)
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
   const { count: postedThisWeek } = await supabase
     .from('post_history')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
-    .gte('posted_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    .gte('posted_at', sevenDaysAgo.toISOString())
 
   // Get upcoming posts
   const { data: upcomingPosts } = await supabase
