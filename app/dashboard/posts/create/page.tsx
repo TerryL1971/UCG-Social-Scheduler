@@ -1,4 +1,4 @@
-// app/dashboard/posts/create/page.tsx‚
+// app/dashboard/posts/create/page.tsx
 
 'use client'
 
@@ -8,12 +8,19 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Sparkles, Copy, Check, Calendar } from 'lucide-react'
+import { Loader2, Sparkles, Copy, Check, Calendar, AlertTriangle, MapPin, Globe, X } from 'lucide-react'
+
+type Territory = {
+  id: string
+  name: string
+}
 
 type FacebookGroup = {
   id: string
   name: string
   description: string | null
+  territory_id: string | null
+  territories: Territory | null
   posting_rules: {
     max_posts_per_week?: number
     best_time?: string
@@ -26,6 +33,13 @@ type GeneratedPost = {
   groupName: string
   content: string
   scheduledFor: string
+  territoryViolation?: boolean
+}
+
+type UserProfile = {
+  territory_id: string | null
+  territories: Territory | null
+  all_territory_ids?: string[] // Add this
 }
 
 export default function CreatePostPage() {
@@ -36,6 +50,10 @@ export default function CreatePostPage() {
   const [step, setStep] = useState<'input' | 'preview' | 'schedule'>('input')
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([])
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [showTerritoryWarning, setShowTerritoryWarning] = useState(false)
+  const [pendingViolations, setPendingViolations] = useState<string[]>([])
+  const [acknowledgedViolations, setAcknowledgedViolations] = useState<string[]>([])
   
   const [formData, setFormData] = useState({
     productName: '',
@@ -47,6 +65,35 @@ export default function CreatePostPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Get all territories for this user
+      const { data } = await supabase
+        .from('profile_territories')
+        .select('territory_id, is_primary, territories(id, name)')
+        .eq('profile_id', user.id)
+
+      if (data && data.length > 0) {
+        // Use the primary territory, or first one if no primary
+        const primaryTerritory = data.find(pt => pt.is_primary) || data[0]
+        const territory = Array.isArray(primaryTerritory.territories) 
+          ? primaryTerritory.territories[0] 
+          : primaryTerritory.territories
+
+        setUserProfile({
+          territory_id: territory?.id || null,
+          territories: territory || null,
+          all_territory_ids: data.map(pt => pt.territory_id) // Store all territories
+        })
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err)
+    }
+  }
+
   const fetchGroups = async () => {
     setLoading(true)
     try {
@@ -55,12 +102,18 @@ export default function CreatePostPage() {
 
       const { data } = await supabase
         .from('facebook_groups')
-        .select('id, name, description, posting_rules')
+        .select('id, name, description, territory_id, territories(id, name), posting_rules')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .order('name')
 
-      setGroups(data || [])
+      if (data) {
+        const normalizedGroups = data.map(g => ({
+          ...g,
+          territories: Array.isArray(g.territories) ? g.territories[0] : g.territories
+        }))
+        setGroups(normalizedGroups)
+      }
     } catch (err) {
       console.error('Error fetching groups:', err)
     } finally {
@@ -69,16 +122,45 @@ export default function CreatePostPage() {
   }
 
   useEffect(() => {
+    fetchUserProfile()
     fetchGroups()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const checkTerritoryViolation = (groupId: string): boolean => {
+    const group = groups.find(g => g.id === groupId)
+    if (!group || !group.territory_id || !userProfile?.all_territory_ids) return false
+    
+    // Check if group's territory is in user's assigned territories
+    return !userProfile.all_territory_ids.includes(group.territory_id)
+  }
+
   const toggleGroup = (groupId: string) => {
+    const hasViolation = checkTerritoryViolation(groupId)
+    
+    if (hasViolation && !selectedGroups.includes(groupId) && !acknowledgedViolations.includes(groupId)) {
+      setPendingViolations([groupId])
+      setShowTerritoryWarning(true)
+      return
+    }
+
     setSelectedGroups(prev =>
       prev.includes(groupId)
         ? prev.filter(id => id !== groupId)
         : [...prev, groupId]
     )
+  }
+
+  const acknowledgeViolation = () => {
+    setAcknowledgedViolations(prev => [...prev, ...pendingViolations])
+    setSelectedGroups(prev => [...prev, ...pendingViolations])
+    setPendingViolations([])
+    setShowTerritoryWarning(false)
+  }
+
+  const cancelViolation = () => {
+    setPendingViolations([])
+    setShowTerritoryWarning(false)
   }
 
   const generatePosts = async () => {
@@ -97,7 +179,6 @@ export default function CreatePostPage() {
 
         console.log('Generating post for:', group.name)
 
-        // Call AI generation API
         const response = await fetch('/api/posts/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -129,6 +210,7 @@ export default function CreatePostPage() {
             groupName: group.name,
             content: data.content,
             scheduledFor: getDefaultScheduleTime(group),
+            territoryViolation: checkTerritoryViolation(groupId),
           })
         } else {
           console.error('No content returned for:', group.name)
@@ -152,7 +234,6 @@ export default function CreatePostPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getDefaultScheduleTime = (group: FacebookGroup): string => {
-    // Set default to tomorrow at 6 PM
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     tomorrow.setHours(18, 0, 0, 0)
@@ -197,6 +278,7 @@ export default function CreatePostPage() {
         generated_content: post.content,
         scheduled_for: new Date(post.scheduledFor).toISOString(),
         status: 'pending',
+        territory_violation_acknowledged: post.territoryViolation || false,
       }))
 
       const { error } = await supabase
@@ -223,14 +305,79 @@ export default function CreatePostPage() {
     )
   }
 
+  const violatingGroup = pendingViolations[0] ? groups.find(g => g.id === pendingViolations[0]) : null
+
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* Territory Warning Modal */}
+      {showTerritoryWarning && violatingGroup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full border-orange-500 border-2">
+            <CardHeader className="bg-orange-50">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-6 h-6 text-orange-600" />
+                <CardTitle className="text-orange-900">Territory Violation Warning</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-3">
+                <p className="text-sm text-gray-700">
+                  You are attempting to post to a group outside your assigned territory:
+                </p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium">Your Territory:</span>
+                    <span className="text-sm">{userProfile?.territories?.name || 'Not Assigned'}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-orange-600" />
+                    <span className="text-sm font-medium">Group Territory:</span>
+                    <span className="text-sm">{violatingGroup.territories?.name || 'Not Assigned'}</span>
+                  </div>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <p className="text-xs text-orange-800">
+                    ⚠️ This action will be logged and visible to management. Territory violations should only be made with proper authorization.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <Button
+                  onClick={acknowledgeViolation}
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  I Understand, Post Anyway
+                </Button>
+                <Button
+                  onClick={cancelViolation}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Create AI-Powered Post</h1>
         <p className="text-gray-600 mt-1">
           Generate custom content for your Facebook groups
         </p>
+        {userProfile?.territories && (
+          <div className="mt-2 inline-flex items-center space-x-2 text-sm bg-blue-50 px-3 py-1 rounded-full">
+            <MapPin className="w-4 h-4 text-blue-600" />
+            <span className="text-blue-700">Your Territory: <span className="font-medium">{userProfile.territories.name}</span></span>
+          </div>
+        )}
       </div>
 
       {/* Progress Steps */}
@@ -326,35 +473,71 @@ export default function CreatePostPage() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {groups.map((g) => (
-                    <div
-                      key={g.id}
-                      onClick={() => toggleGroup(g.id)}
-                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedGroups.includes(g.id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-medium">{g.name}</h3>
-                          {g.description && (
-                            <p className="text-sm text-gray-600 mt-1">{g.description}</p>
-                          )}
-                        </div>
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          selectedGroups.includes(g.id)
-                            ? 'border-blue-500 bg-blue-500'
-                            : 'border-gray-300'
-                        }`}>
-                          {selectedGroups.includes(g.id) && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
+                  {groups.map((g) => {
+                    const isSelected = selectedGroups.includes(g.id)
+                    const hasViolation = checkTerritoryViolation(g.id)
+                    const isAcknowledged = acknowledgedViolations.includes(g.id)
+                    
+                    return (
+                      <div
+                        key={g.id}
+                        onClick={() => toggleGroup(g.id)}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                          isSelected
+                            ? hasViolation
+                              ? 'border-orange-500 bg-orange-50'
+                              : 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h3 className="font-medium">{g.name}</h3>
+                              {hasViolation && isSelected && (
+                                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-800 rounded">
+                                  <AlertTriangle className="w-3 h-3 mr-1" />
+                                  Territory Violation
+                                </span>
+                              )}
+                            </div>
+                            {g.description && (
+                              <p className="text-sm text-gray-600 mb-2">{g.description}</p>
+                            )}
+                            <div className="flex items-center space-x-2">
+                              {g.territories ? (
+                                <div className="flex items-center text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                                  <MapPin className="w-3 h-3 mr-1" />
+                                  {g.territories.name}
+                                </div>
+                              ) : (
+                                <div className="flex items-center text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                  <Globe className="w-3 h-3 mr-1" />
+                                  All Territories
+                                </div>
+                              )}
+                            </div>
+                            {hasViolation && isAcknowledged && (
+                              <p className="text-xs text-orange-600 mt-2">
+                                ⚠️ Violation acknowledged - will be logged
+                              </p>
+                            )}
+                          </div>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ml-3 ${
+                            isSelected
+                              ? hasViolation
+                                ? 'border-orange-500 bg-orange-500'
+                                : 'border-blue-500 bg-blue-500'
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <Check className="w-3 h-3 text-white" />
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
@@ -397,9 +580,19 @@ export default function CreatePostPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {generatedPosts.map((post, index) => (
-                <div key={index} className="border rounded-lg p-4 space-y-3">
+                <div key={index} className={`border rounded-lg p-4 space-y-3 ${
+                  post.territoryViolation ? 'border-orange-300 bg-orange-50' : ''
+                }`}>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">{post.groupName}</h3>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-semibold text-lg">{post.groupName}</h3>
+                      {post.territoryViolation && (
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-200 text-orange-900 rounded">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Territory Violation
+                        </span>
+                      )}
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -453,8 +646,18 @@ export default function CreatePostPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {generatedPosts.map((post, index) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <h3 className="font-semibold mb-3">{post.groupName}</h3>
+                <div key={index} className={`border rounded-lg p-4 ${
+                  post.territoryViolation ? 'border-orange-300 bg-orange-50' : ''
+                }`}>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <h3 className="font-semibold">{post.groupName}</h3>
+                    {post.territoryViolation && (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-orange-200 text-orange-900 rounded">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Violation Logged
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Scheduled Time</label>
                     <input
@@ -468,6 +671,20 @@ export default function CreatePostPage() {
               ))}
             </CardContent>
           </Card>
+
+          {generatedPosts.some(p => p.territoryViolation) && (
+            <Card className="border-orange-300 bg-orange-50">
+              <CardContent className="py-4">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-orange-800">
+                    <p className="font-medium mb-1">Territory Violations Will Be Logged</p>
+                    <p>Management will be able to see that you posted to groups outside your assigned territory. Make sure you have proper authorization.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex space-x-3">
             <Button onClick={savePosts} disabled={loading}>

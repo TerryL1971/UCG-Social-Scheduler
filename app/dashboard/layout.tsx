@@ -11,7 +11,9 @@ import {
   FileText, 
   BarChart3, 
   Settings,
-  LogOut
+  LogOut,
+  AlertTriangle,
+  MapPin
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -44,6 +46,8 @@ export default async function DashboardLayout({
     { name: 'Groups', href: '/dashboard/groups', icon: Users, show: true },
     { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, show: true },
     { name: 'Templates', href: '/dashboard/templates', icon: FileText, show: true },
+    { name: 'Territories', href: '/dashboard/territories', icon: MapPin, show: isManager },
+    { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, show: isManager },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, show: isManager },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings, show: true },
   ]

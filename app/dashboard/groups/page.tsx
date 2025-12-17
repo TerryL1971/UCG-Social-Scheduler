@@ -1,3 +1,5 @@
+// app/dashboard/groups/page.tsx
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -5,11 +7,12 @@ import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Users, Globe, Trash2, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin } from 'lucide-react'
 
 type Territory = {
   id: string
   name: string
+  dealership_name?: string
 }
 
 type FacebookGroup = {
@@ -53,21 +56,16 @@ export default function GroupsPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       
-      console.log('Current user ID:', user?.id)
-      
       if (!user) {
-        console.log('No user found')
         setErrorMessage('Not authenticated')
         return
       }
 
       const { data, error } = await supabase
         .from('facebook_groups')
-        .select('*, territories(name)')
+        .select('*, territories(id, name)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-
-      console.log('Groups query result:', { data, error, userID: user.id })
 
       if (error) {
         console.error('Error fetching groups:', error)
@@ -86,23 +84,22 @@ export default function GroupsPage() {
   const fetchTerritories = useCallback(async () => {
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const { data } = await supabase
+        .from('territories')
+        .select('id, name, dealerships(name)')
+        .order('name')
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('dealership_id')
-        .eq('id', user.id)
-        .single()
+      console.log('Raw territories data:', data) // ADD THIS LINE
 
-      if (profile?.dealership_id) {
-        const { data } = await supabase
-          .from('territories')
-          .select('id, name')
-          .eq('dealership_id', profile.dealership_id)
-          .order('name')
-
-        setTerritories(data || [])
+      if (data) {
+        setTerritories(data.map(t => {
+          const dealership = Array.isArray(t.dealerships) ? t.dealerships[0] : t.dealerships
+          return {
+            id: t.id,
+            name: t.name,
+            dealership_name: dealership?.name || ''
+          }
+        }))
       }
     } catch (err) {
       console.error('Error fetching territories:', err)
@@ -140,9 +137,7 @@ export default function GroupsPage() {
         notes: formData.notes || undefined,
       }
 
-      console.log('Inserting group with user_id:', user.id)
-
-      const { data, error } = await supabase.from('facebook_groups').insert({
+      const { error } = await supabase.from('facebook_groups').insert({
         user_id: user.id,
         name: formData.name,
         facebook_url: formData.facebook_url || null,
@@ -152,8 +147,6 @@ export default function GroupsPage() {
         posting_rules: postingRules,
         is_active: true,
       }).select()
-
-      console.log('Insert result:', { data, error })
 
       if (error) {
         console.error('Error adding group:', error)
@@ -316,15 +309,18 @@ export default function GroupsPage() {
                   <select
                     value={formData.territory_id}
                     onChange={(e) => setFormData({ ...formData, territory_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select territory (optional)</option>
+                    <option value="">No Territory (Available to All)</option>
                     {territories.map((territory) => (
                       <option key={territory.id} value={territory.id}>
-                        {territory.name}
+                        {territory.name} {territory.dealership_name ? `(${territory.dealership_name})` : ''}
                       </option>
                     ))}
                   </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                    ⚠️ Salespeople will get a warning if posting outside their assigned territory
+                  </p>
                 </div>
               </div>
 
@@ -411,17 +407,22 @@ export default function GroupsPage() {
                       <p className="text-sm text-gray-600 mt-2">{group.description}</p>
                     )}
 
-                    <div className="flex items-center space-x-6 mt-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-6 mt-4 text-sm">
                       {group.member_count && (
-                        <div className="flex items-center">
+                        <div className="flex items-center text-gray-600">
                           <Users className="w-4 h-4 mr-1" />
                           {group.member_count.toLocaleString()} members
                         </div>
                       )}
-                      {group.territories && (
-                        <div className="flex items-center">
+                      {group.territories ? (
+                        <div className="flex items-center text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                          <MapPin className="w-4 h-4 mr-1" />
+                          <span className="font-medium">{group.territories.name}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-gray-500 bg-gray-50 px-2 py-1 rounded">
                           <Globe className="w-4 h-4 mr-1" />
-                          {group.territories.name}
+                          <span>Available to All Territories</span>
                         </div>
                       )}
                     </div>
