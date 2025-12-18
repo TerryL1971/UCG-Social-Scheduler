@@ -278,20 +278,23 @@ export default function CreatePostPage() {
         generated_content: post.content,
         scheduled_for: new Date(post.scheduledFor).toISOString(),
         status: 'pending',
-        territory_violation_acknowledged: post.territoryViolation || false,
+        territory_violation_acknowledged: post.territoryViolation === true,
       }))
 
       const { error } = await supabase
         .from('scheduled_posts')
         .insert(postsToInsert)
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
 
       alert('Posts scheduled successfully!')
       router.push('/dashboard/posts')
     } catch (err) {
       console.error('Error saving posts:', err)
-      alert('Failed to save posts')
+      alert('Failed to save posts: ' + (err as Error).message)
     } finally {
       setLoading(false)
     }

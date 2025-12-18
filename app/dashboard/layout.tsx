@@ -13,7 +13,8 @@ import {
   Settings,
   LogOut,
   AlertTriangle,
-  MapPin
+  MapPin,
+  Building2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -43,6 +44,7 @@ export default async function DashboardLayout({
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, show: true },
+    { name: 'Management', href: '/dashboard/management', icon: Building2, show: isManager }, // ADD THIS
     { name: 'Groups', href: '/dashboard/groups', icon: Users, show: true },
     { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, show: true },
     { name: 'Templates', href: '/dashboard/templates', icon: FileText, show: true },

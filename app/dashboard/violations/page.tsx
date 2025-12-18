@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Calendar, Download, Filter, MapPin, User, Users } from 'lucide-react'
+import { Mail, MessageCircle } from 'lucide-react'
 
 type Violation = {
   id: string
@@ -372,6 +373,37 @@ export default function ViolationsPage() {
                     <div>
                       <h3 className="font-semibold text-gray-900">{violation.salesperson_name}</h3>
                       <p className="text-sm text-gray-600">{violation.salesperson_email}</p>
+                    <div className="flex space-x-2 mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const subject = encodeURIComponent('Territory Violation Follow-up')
+                            const body = encodeURIComponent(
+                              `Hi ${violation.salesperson_name},\n\nI wanted to follow up regarding your recent territory violation for the ${violation.group_name} group.\n\nBest regards`
+                            )
+                            window.open(`mailto:${violation.salesperson_email}?subject=${subject}&body=${body}`, '_blank')
+                          }}
+                        >
+                          <Mail className="w-4 h-4 mr-1" />
+                          Email
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            const message = encodeURIComponent(
+                              `Hi ${violation.salesperson_name}, I wanted to discuss the recent territory violation. Can we chat?`
+                            )
+                            // Note: Would need phone number in violation data
+                            alert('Phone number needed for WhatsApp. Add to violation query.')
+                          }}
+                        >
+                          <MessageCircle className="w-4 h-4 mr-1" />
+                          WhatsApp
+                        </Button>  
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
