@@ -24,7 +24,7 @@ type Salesperson = {
   id: string
   full_name: string
   email: string
-  phone?: string
+  phone?: string | null  // ADD THIS
   totalPosts: number
   pendingPosts: number
   completedPosts: number
@@ -70,6 +70,7 @@ export default function ManagementDashboard() {
           id,
           full_name,
           email,
+          phone,
           dealership_id,
           role,
           profile_territories(
@@ -109,6 +110,7 @@ export default function ManagementDashboard() {
             id: person.id,
             full_name: person.full_name || person.email,
             email: person.email,
+            phone: person.phone,  // ADD THIS
             totalPosts: totalPosts,
             pendingPosts: personPosts.filter(p => p.status === 'pending').length,
             completedPosts: personPosts.filter(p => p.status === 'posted').length,
@@ -151,15 +153,16 @@ export default function ManagementDashboard() {
     window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank')
   }
 
-  const sendWhatsApp = (phone: string | undefined, name: string) => {
+  const sendWhatsApp = (phone: string | null | undefined, name: string) => {
     if (!phone) {
       alert('No phone number on file')
       return
     }
+    const cleanPhone = phone.replace(/[^0-9]/g, '') // Remove all non-numeric characters
     const message = encodeURIComponent(
       `Hi ${name}, I wanted to follow up regarding territory compliance. Can we discuss?`
     )
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank')
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank')
   }
 
   if (loading) {

@@ -17,6 +17,7 @@ type Violation = {
   generated_content: string
   salesperson_email: string
   salesperson_name: string
+  salesperson_phone: string | null  // ADD THIS
   salesperson_territory: string | null
   group_name: string
   group_territory: string | null
@@ -62,6 +63,7 @@ export default function ViolationsPage() {
           profiles!inner (
             email,
             full_name,
+            phone,
             profile_territories!inner (
               territories (name)
             )
@@ -95,6 +97,7 @@ export default function ViolationsPage() {
           generated_content: v.generated_content,
           salesperson_email: profiles?.email || '',
           salesperson_name: profiles?.full_name || profiles?.email || 'Unknown',
+          salesperson_phone: profiles?.phone || null,  // ADD THIS
           salesperson_territory: primaryTerritory ? 
             (Array.isArray(primaryTerritory) ? primaryTerritory[0]?.name : (primaryTerritory as { name: string })?.name) : null,
           group_name: groups?.name || 'Unknown',
@@ -392,17 +395,19 @@ export default function ViolationsPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            if (!violation.salesperson_phone) {
+                              alert('No phone number on file for this salesperson')
+                              return
+                            }
                             const message = encodeURIComponent(
                               `Hi ${violation.salesperson_name}, I wanted to discuss the recent territory violation. Can we chat?`
                             )
-                            // Note: Would need phone number in violation data
-                            alert('Phone number needed for WhatsApp. Add to violation query.')
+                            window.open(`https://wa.me/${violation.salesperson_phone.replace(/[^0-9]/g, '')}?text=${message}`, '_blank')
                           }}
                         >
                           <MessageCircle className="w-4 h-4 mr-1" />
                           WhatsApp
-                        </Button>  
+                        </Button> 
                       </div>
                     </div>
                   </div>
