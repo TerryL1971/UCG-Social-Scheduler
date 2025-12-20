@@ -40,7 +40,10 @@ export default async function DashboardLayout({
     .eq('id', user.id)
     .single()
 
-  const isManager = profile?.role === 'manager' || profile?.role === 'admin'
+  const isManager =
+  profile?.role === 'manager' ||
+  profile?.role === 'admin' ||
+  profile?.role === 'owner'
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, show: true },
