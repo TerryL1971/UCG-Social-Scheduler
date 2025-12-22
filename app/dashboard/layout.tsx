@@ -46,16 +46,17 @@ export default async function DashboardLayout({
   profile?.role === 'owner'
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, show: true },
-    { name: 'Management', href: '/dashboard/management', icon: Building2, show: isManager }, // ADD THIS
-    { name: 'Groups', href: '/dashboard/groups', icon: Users, show: true },
-    { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, show: true },
-    { name: 'Templates', href: '/dashboard/templates', icon: FileText, show: true },
-    { name: 'Territories', href: '/dashboard/territories', icon: MapPin, show: isManager },
-    { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, show: isManager },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, show: isManager },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings, show: true },
-  ]
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, show: true },
+  { name: 'Management', href: '/dashboard/management', icon: Building2, show: isManager },
+  { name: 'Groups', href: '/dashboard/groups', icon: Users, show: true },
+  { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, show: true },
+  { name: 'Templates', href: '/dashboard/templates', icon: FileText, show: true },
+  { name: 'Territories', href: '/dashboard/territories', icon: MapPin, show: isManager },
+  { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, show: !isManager }, // ADD THIS LINE
+  { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, show: isManager },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, show: true },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings, show: true },
+]
 
   return (
     <div className="min-h-screen bg-gray-50">

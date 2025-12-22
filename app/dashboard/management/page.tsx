@@ -55,36 +55,43 @@ export default function ManagementDashboard() {
   }, [])
 
   const fetchManagementData = async () => {
-    setLoading(true)
-    try {
-      // Fetch all dealerships
-      const { data: dealershipsData } = await supabase
-        .from('dealerships')
-        .select('*')
-        .order('name')
+  setLoading(true)
+  try {
+    // Fetch all dealerships
+    const { data: dealershipsData, error: dealershipsError } = await supabase
+      .from('dealerships')
+      .select('*')
+      .order('name')
+    
+    console.log('📍 Dealerships:', dealershipsData, 'Error:', dealershipsError)
 
-      // Fetch all salespeople with their stats
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          full_name,
-          email,
-          phone,
-          dealership_id,
-          role,
-          profile_territories(
-            territory_id,
-            is_primary,
-            territories(name)
-          )
-        `)
-        .in('role', ['salesperson', 'manager'])
+    // Fetch all salespeople with their stats
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select(`
+        id,
+        full_name,
+        email,
+        phone,
+        dealership_id,
+        role,
+        profile_territories(
+          territory_id,
+          is_primary,
+          territories(name)
+        )
+      `)
+      .in('role', ['salesperson', 'manager'])
+    
+    console.log('👥 Profiles:', profiles, 'Error:', profilesError)
 
-      // Fetch all posts
-      const { data: allPosts } = await supabase
-        .from('scheduled_posts')
-        .select('user_id, status, territory_violation_acknowledged')
+    // Fetch all posts
+    const { data: allPosts, error: postsError } = await supabase
+      .from('scheduled_posts')
+      .select('user_id, status, territory_violation_acknowledged')
+    
+    console.log('📝 All Posts:', allPosts, 'Error:', postsError)
+    console.log('📝 Posts count:', allPosts?.length)
 
       // Process data by dealership
       const dealershipsWithStats: Dealership[] = (dealershipsData || []).map(dealership => {

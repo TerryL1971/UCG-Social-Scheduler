@@ -2,113 +2,126 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useEffect, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, Calendar, Download, Filter, MapPin, User, Users } from 'lucide-react'
-import { Mail, MessageCircle } from 'lucide-react'
+import { 
+  AlertTriangle, 
+  CheckCircle, 
+  XCircle,
+  Clock,
+  MessageSquare,
+  User
+} from 'lucide-react'
 
 type Violation = {
   id: string
-  created_at: string
   scheduled_for: string
   status: string
+  violation_status: string
+  violation_justification: string | null
+  authorization_requested_at: string | null
+  authorization_granted_at: string | null
   generated_content: string
-  salesperson_email: string
-  salesperson_name: string
-  salesperson_phone: string | null  // ADD THIS
-  salesperson_territory: string | null
-  group_name: string
-  group_territory: string | null
-}
-
-type Stats = {
-  totalViolations: number
-  byTerritory: Record<string, number>
-  bySalesperson: Record<string, number>
-  thisMonth: number
+  profiles: {
+    full_name: string | null
+    email: string
+  } | null
+  facebook_groups: {
+    name: string
+    territory_id: string | null
+    territories: {
+      name: string
+    } | null
+  } | null
 }
 
 export default function ViolationsPage() {
   const [violations, setViolations] = useState<Violation[]>([])
-  const [filteredViolations, setFilteredViolations] = useState<Violation[]>([])
-  const [stats, setStats] = useState<Stats>({
-    totalViolations: 0,
-    byTerritory: {},
-    bySalesperson: {},
-    thisMonth: 0
-  })
   const [loading, setLoading] = useState(true)
-  const [filterSalesperson, setFilterSalesperson] = useState('')
-  const [filterTerritory, setFilterTerritory] = useState('')
-  const [filterDateFrom, setFilterDateFrom] = useState('')
-  const [filterDateTo, setFilterDateTo] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
-
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'all' | 'pending' | 'authorized' | 'justified'>('all')
+  const [isManager, setIsManager] = useState(false)
   const supabase = createClient()
+
+  useEffect(() => {
+    fetchViolations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const fetchViolations = async () => {
     setLoading(true)
-    
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Check if user is manager/admin/owner
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, dealership_id')
+        .eq('id', user.id)
+        .single()
+
+      const userIsManager = profile?.role === 'manager' || profile?.role === 'admin' || profile?.role === 'owner'
+      setIsManager(userIsManager)
+
+      if (!userIsManager) {
+        return
+      }
+
+      // Fetch all violations from the dealership (or all if owner)
+      const query = supabase
         .from('scheduled_posts')
         .select(`
           id,
-          created_at,
           scheduled_for,
           status,
+          violation_status,
+          violation_justification,
+          authorization_requested_at,
+          authorization_granted_at,
           generated_content,
-          profiles!inner (
-            email,
+          profiles (
             full_name,
-            phone,
-            profile_territories!inner (
-              territories (name)
-            )
+            email,
+            dealership_id
           ),
-          facebook_groups!inner (
+          facebook_groups (
             name,
             territory_id,
-            territories (name)
+            territories(name)
           )
         `)
         .eq('territory_violation_acknowledged', true)
-        .order('created_at', { ascending: false })
+        .order('authorization_requested_at', { ascending: false, nullsFirst: false })
 
-      if (error) throw error
+      const { data } = await query
 
-      const normalizedViolations: Violation[] = (data || []).map((v) => {
-        const profiles = Array.isArray(v.profiles) ? v.profiles[0] : v.profiles
-        const groups = Array.isArray(v.facebook_groups) ? v.facebook_groups[0] : v.facebook_groups
-        
-        // Get primary territory from profile_territories
-        const profileTerritories = profiles?.profile_territories || []
-        const primaryTerritory = Array.isArray(profileTerritories) && profileTerritories.length > 0
-          ? profileTerritories[0]?.territories
-          : null
+      // Filter by dealership unless owner
+      let filteredData = data || []
+      if (profile?.role !== 'owner') {
+        filteredData = (data || []).filter(v => {
+          const profileData = Array.isArray(v.profiles) ? v.profiles[0] : v.profiles
+          return profileData?.dealership_id === profile?.dealership_id
+        })
+      }
+
+      setViolations(filteredData.map(item => {
+        const profileData = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        const groupData = Array.isArray(item.facebook_groups) ? item.facebook_groups[0] : item.facebook_groups
         
         return {
-          id: v.id,
-          created_at: v.created_at,
-          scheduled_for: v.scheduled_for,
-          status: v.status,
-          generated_content: v.generated_content,
-          salesperson_email: profiles?.email || '',
-          salesperson_name: profiles?.full_name || profiles?.email || 'Unknown',
-          salesperson_phone: profiles?.phone || null,  // ADD THIS
-          salesperson_territory: primaryTerritory ? 
-            (Array.isArray(primaryTerritory) ? primaryTerritory[0]?.name : (primaryTerritory as { name: string })?.name) : null,
-          group_name: groups?.name || 'Unknown',
-          group_territory: groups?.territories ?
-            (Array.isArray(groups.territories) ? groups.territories[0]?.name : (groups.territories as { name: string })?.name) : null
+          ...item,
+          profiles: profileData,
+          facebook_groups: groupData ? {
+            ...groupData,
+            territories: Array.isArray(groupData.territories) 
+              ? groupData.territories[0] 
+              : groupData.territories
+          } : null
         }
-      })
-
-      setViolations(normalizedViolations)
-      setFilteredViolations(normalizedViolations)
-      calculateStats(normalizedViolations)
+      }) as Violation[])
     } catch (err) {
       console.error('Error fetching violations:', err)
     } finally {
@@ -116,149 +129,138 @@ export default function ViolationsPage() {
     }
   }
 
-  const calculateStats = (data: Violation[]) => {
-    const now = new Date()
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    
-    const stats: Stats = {
-      totalViolations: data.length,
-      byTerritory: {},
-      bySalesperson: {},
-      thisMonth: 0
+  const handleApprove = async (violationId: string) => {
+    if (!confirm('Approve this authorization request? The post will be allowed in this territory.')) {
+      return
     }
 
-    data.forEach(v => {
-      const territory = v.salesperson_territory || 'Unassigned'
-      stats.byTerritory[territory] = (stats.byTerritory[territory] || 0) + 1
+    setActionLoading(violationId)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-      stats.bySalesperson[v.salesperson_name] = (stats.bySalesperson[v.salesperson_name] || 0) + 1
+      const { error } = await supabase
+        .from('scheduled_posts')
+        .update({
+          violation_status: 'authorized',
+          authorization_granted_by: user.id,
+          authorization_granted_at: new Date().toISOString()
+        })
+        .eq('id', violationId)
 
-      if (new Date(v.created_at) >= thisMonth) {
-        stats.thisMonth++
-      }
-    })
-
-    setStats(stats)
+      if (error) throw error
+      
+      await fetchViolations()
+      alert('Authorization approved!')
+    } catch (err) {
+      console.error('Error approving authorization:', err)
+      alert('Failed to approve authorization')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
-  useEffect(() => {
-    fetchViolations()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    let filtered = [...violations]
-
-    if (filterSalesperson) {
-      filtered = filtered.filter(v => 
-        v.salesperson_name.toLowerCase().includes(filterSalesperson.toLowerCase()) ||
-        v.salesperson_email.toLowerCase().includes(filterSalesperson.toLowerCase())
-      )
+  const handleDeny = async (violationId: string) => {
+    if (!confirm('Deny this authorization request? The salesperson will need to take other corrective action.')) {
+      return
     }
 
-    if (filterTerritory) {
-      filtered = filtered.filter(v => 
-        v.salesperson_territory?.toLowerCase().includes(filterTerritory.toLowerCase())
-      )
+    setActionLoading(violationId)
+    try {
+      const { error } = await supabase
+        .from('scheduled_posts')
+        .update({
+          violation_status: 'denied',
+          authorization_requested_at: null
+        })
+        .eq('id', violationId)
+
+      if (error) throw error
+      
+      await fetchViolations()
+      alert('Authorization denied. Salesperson has been notified.')
+    } catch (err) {
+      console.error('Error denying authorization:', err)
+      alert('Failed to deny authorization')
+    } finally {
+      setActionLoading(null)
     }
-
-    if (filterDateFrom) {
-      filtered = filtered.filter(v => new Date(v.created_at) >= new Date(filterDateFrom))
-    }
-
-    if (filterDateTo) {
-      const dateTo = new Date(filterDateTo)
-      dateTo.setHours(23, 59, 59, 999)
-      filtered = filtered.filter(v => new Date(v.created_at) <= dateTo)
-    }
-
-    setFilteredViolations(filtered)
-  }, [filterSalesperson, filterTerritory, filterDateFrom, filterDateTo, violations])
-
-  const exportToCSV = () => {
-    const headers = ['Date', 'Salesperson', 'Salesperson Territory', 'Group Name', 'Group Territory', 'Status', 'Scheduled For']
-    const rows = filteredViolations.map(v => [
-      new Date(v.created_at).toLocaleDateString(),
-      v.salesperson_name,
-      v.salesperson_territory || 'N/A',
-      v.group_name,
-      v.group_territory || 'N/A',
-      v.status,
-      new Date(v.scheduled_for).toLocaleDateString()
-    ])
-
-    const csv = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n')
-
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `territory-violations-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
-  const clearFilters = () => {
-    setFilterSalesperson('')
-    setFilterTerritory('')
-    setFilterDateFrom('')
-    setFilterDateTo('')
+  const getFilteredViolations = () => {
+    switch (filter) {
+      case 'pending':
+        return violations.filter(v => v.authorization_requested_at && !v.authorization_granted_at)
+      case 'authorized':
+        return violations.filter(v => v.authorization_granted_at)
+      case 'justified':
+        return violations.filter(v => v.violation_status === 'justified')
+      default:
+        return violations
+    }
   }
+
+  const filteredViolations = getFilteredViolations()
+  const pendingCount = violations.filter(v => v.authorization_requested_at && !v.authorization_granted_at).length
+  const authorizedCount = violations.filter(v => v.authorization_granted_at).length
+  const justifiedCount = violations.filter(v => v.violation_status === 'justified').length
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading violations...</p>
         </div>
       </div>
     )
   }
 
+  if (!isManager) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center">
+              <AlertTriangle className="w-16 h-16 text-orange-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h3>
+              <p className="text-gray-600">Only managers can view this page.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Territory Violations</h1>
-          <p className="text-gray-600 mt-1">Monitor and track territory policy violations</p>
-        </div>
-        <div className="flex space-x-3">
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-            <Filter className="w-4 h-4 mr-2" />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </Button>
-          <Button onClick={exportToCSV} disabled={filteredViolations.length === 0}>
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Territory Violations</h1>
+        <p className="text-gray-600 mt-1">Review and manage territory violations from your team</p>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Violations</p>
-                <p className="text-3xl font-bold text-orange-600">{stats.totalViolations}</p>
+                <p className="text-3xl font-bold text-orange-600">{violations.length}</p>
               </div>
               <AlertTriangle className="w-8 h-8 text-orange-600" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={pendingCount > 0 ? 'border-2 border-blue-500' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">This Month</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.thisMonth}</p>
+                <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+                <p className="text-3xl font-bold text-blue-600">{pendingCount}</p>
               </div>
-              <Calendar className="w-8 h-8 text-blue-600" />
+              <Clock className="w-8 h-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
@@ -267,10 +269,10 @@ export default function ViolationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Unique Salespeople</p>
-                <p className="text-3xl font-bold text-purple-600">{Object.keys(stats.bySalesperson).length}</p>
+                <p className="text-sm font-medium text-gray-600">Authorized</p>
+                <p className="text-3xl font-bold text-green-600">{authorizedCount}</p>
               </div>
-              <Users className="w-8 h-8 text-purple-600" />
+              <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
@@ -279,221 +281,182 @@ export default function ViolationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Territories Affected</p>
-                <p className="text-3xl font-bold text-green-600">{Object.keys(stats.byTerritory).length}</p>
+                <p className="text-sm font-medium text-gray-600">Justified</p>
+                <p className="text-3xl font-bold text-purple-600">{justifiedCount}</p>
               </div>
-              <MapPin className="w-8 h-8 text-green-600" />
+              <MessageSquare className="w-8 h-8 text-purple-600" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {showFilters && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-            <CardDescription>Filter violations by salesperson, territory, or date range</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Salesperson</label>
-                <input
-                  type="text"
-                  value={filterSalesperson}
-                  onChange={(e) => setFilterSalesperson(e.target.value)}
-                  placeholder="Name or email..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
+      {/* Filter Tabs */}
+      <div className="flex space-x-2 border-b">
+        <button
+          onClick={() => setFilter('all')}
+          className={`px-4 py-2 font-medium ${
+            filter === 'all'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          All ({violations.length})
+        </button>
+        <button
+          onClick={() => setFilter('pending')}
+          className={`px-4 py-2 font-medium ${
+            filter === 'pending'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Pending Approval ({pendingCount})
+        </button>
+        <button
+          onClick={() => setFilter('authorized')}
+          className={`px-4 py-2 font-medium ${
+            filter === 'authorized'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Authorized ({authorizedCount})
+        </button>
+        <button
+          onClick={() => setFilter('justified')}
+          className={`px-4 py-2 font-medium ${
+            filter === 'justified'
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Justified ({justifiedCount})
+        </button>
+      </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Territory</label>
-                <input
-                  type="text"
-                  value={filterTerritory}
-                  onChange={(e) => setFilterTerritory(e.target.value)}
-                  placeholder="Territory name..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">From Date</label>
-                <input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">To Date</label>
-                <input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-            </div>
-
-            {(filterSalesperson || filterTerritory || filterDateFrom || filterDateTo) && (
-              <div className="mt-4 flex justify-between items-center">
-                <p className="text-sm text-gray-600">
-                  Showing {filteredViolations.length} of {violations.length} violations
-                </p>
-                <Button variant="outline" size="sm" onClick={clearFilters}>
-                  Clear All Filters
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Violations List */}
       {filteredViolations.length === 0 ? (
         <Card>
-          <CardContent className="text-center py-12">
-            <AlertTriangle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Violations Found</h3>
-            <p className="text-gray-600">
-              {violations.length === 0 
-                ? "No territory violations have been recorded yet."
-                : "No violations match your current filters."}
-            </p>
+          <CardContent className="py-12">
+            <div className="text-center">
+              <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Violations</h3>
+              <p className="text-gray-600">No violations found in this category.</p>
+            </div>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
           {filteredViolations.map((violation) => (
-            <Card key={violation.id} className="border-orange-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start space-x-3">
-                    <AlertTriangle className="w-5 h-5 text-orange-600 mt-1 shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{violation.salesperson_name}</h3>
-                      <p className="text-sm text-gray-600">{violation.salesperson_email}</p>
-                    <div className="flex space-x-2 mt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const subject = encodeURIComponent('Territory Violation Follow-up')
-                            const body = encodeURIComponent(
-                              `Hi ${violation.salesperson_name},\n\nI wanted to follow up regarding your recent territory violation for the ${violation.group_name} group.\n\nBest regards`
-                            )
-                            window.open(`mailto:${violation.salesperson_email}?subject=${subject}&body=${body}`, '_blank')
-                          }}
-                        >
-                          <Mail className="w-4 h-4 mr-1" />
-                          Email
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            if (!violation.salesperson_phone) {
-                              alert('No phone number on file for this salesperson')
-                              return
-                            }
-                            const message = encodeURIComponent(
-                              `Hi ${violation.salesperson_name}, I wanted to discuss the recent territory violation. Can we chat?`
-                            )
-                            window.open(`https://wa.me/${violation.salesperson_phone.replace(/[^0-9]/g, '')}?text=${message}`, '_blank')
-                          }}
-                        >
-                          <MessageCircle className="w-4 h-4 mr-1" />
-                          WhatsApp
-                        </Button> 
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(violation.created_at).toLocaleDateString()}
+            <Card key={violation.id} className="border-l-4 border-l-orange-500">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <User className="w-5 h-5 text-gray-600" />
+                      {violation.profiles?.full_name || violation.profiles?.email || 'Unknown User'}
+                    </CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Posted to: <strong>{violation.facebook_groups?.name || 'Unknown Group'}</strong>
+                      {violation.facebook_groups?.territories && (
+                        <span className="ml-2">
+                          ({violation.facebook_groups.territories.name})
+                        </span>
+                      )}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(violation.created_at).toLocaleTimeString()}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Scheduled: {new Date(violation.scheduled_for).toLocaleString()}
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <p className="text-xs font-medium text-blue-900 mb-1">Salesperson Territory</p>
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-700">
-                        {violation.salesperson_territory || 'Not Assigned'}
+                  <div className="flex flex-col items-end gap-2">
+                    {violation.authorization_granted_at ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded flex items-center">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Authorized
                       </span>
-                    </div>
-                  </div>
-
-                  <div className="bg-orange-50 p-3 rounded-lg">
-                    <p className="text-xs font-medium text-orange-900 mb-1">Posted to Group</p>
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="w-4 h-4 text-orange-600" />
-                      <div>
-                        <p className="text-sm font-medium text-orange-700">{violation.group_name}</p>
-                        <p className="text-xs text-orange-600">
-                          Territory: {violation.group_territory || 'Not Assigned'}
-                        </p>
-                      </div>
-                    </div>
+                    ) : violation.authorization_requested_at ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded flex items-center">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Pending Approval
+                      </span>
+                    ) : violation.violation_status === 'justified' ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded flex items-center">
+                        <MessageSquare className="w-3 h-3 mr-1" />
+                        Justified
+                      </span>
+                    ) : violation.violation_status === 'denied' ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded flex items-center">
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Denied
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded flex items-center">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Unresolved
+                      </span>
+                    )}
                   </div>
                 </div>
-
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <p className="text-xs font-medium text-gray-700 mb-2">Post Content Preview</p>
-                  <p className="text-sm text-gray-600 line-clamp-2">
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-700 line-clamp-3">
                     {violation.generated_content}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <div className="flex items-center space-x-4 text-xs text-gray-500">
-                    <span>Status: <span className="font-medium capitalize">{violation.status}</span></span>
-                    <span>Scheduled: {new Date(violation.scheduled_for).toLocaleDateString()}</span>
+                {violation.violation_justification && (
+                  <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded">
+                    <p className="text-sm font-medium text-purple-900 mb-1">Salesperson Justification:</p>
+                    <p className="text-sm text-purple-800">{violation.violation_justification}</p>
                   </div>
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    Violation Acknowledged
-                  </span>
-                </div>
+                )}
+
+                {violation.authorization_requested_at && !violation.authorization_granted_at && violation.violation_status !== 'denied' && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleApprove(violation.id)}
+                      disabled={actionLoading === violation.id}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeny(violation.id)}
+                      disabled={actionLoading === violation.id}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Deny
+                    </Button>
+                  </div>
+                )}
+
+                {violation.authorization_granted_at && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded">
+                    <p className="text-sm text-green-800">
+                      <CheckCircle className="w-4 h-4 inline mr-1" />
+                      Authorized on {new Date(violation.authorization_granted_at).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {violation.violation_status === 'denied' && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded">
+                    <p className="text-sm text-red-800">
+                      <XCircle className="w-4 h-4 inline mr-1" />
+                      Authorization denied. Salesperson must take other corrective action.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
-      )}
-
-      {Object.keys(stats.bySalesperson).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Most Frequent Violators</CardTitle>
-            <CardDescription>Salespeople with the most territory violations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {Object.entries(stats.bySalesperson)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 5)
-                .map(([name, count]) => (
-                  <div key={name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <User className="w-4 h-4 text-gray-600" />
-                      <span className="font-medium text-gray-900">{name}</span>
-                    </div>
-                    <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
-                      {count} violation{count !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
       )}
     </div>
   )

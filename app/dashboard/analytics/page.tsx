@@ -36,18 +36,18 @@ export default async function AnalyticsPage() {
     redirect('/login')
   }
 
-  // Check if user is manager or admin
+  // Check user role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, dealership_id')
+    .select('role, dealership_id, email')
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'manager' && profile?.role !== 'admin') {
+  if (!profile) {
     redirect('/dashboard')
   }
 
-  // Get all posts from dealership
+  // Get all posts
   const { data: allPosts } = await supabase
     .from('scheduled_posts')
     .select(`
@@ -57,10 +57,23 @@ export default async function AnalyticsPage() {
     `)
     .order('created_at', { ascending: false })
 
-  // Filter by dealership
-  const dealershipPosts = (allPosts as PostWithRelations[] || []).filter(post => 
-    post.profiles?.dealership_id === profile.dealership_id
-  )
+  // Filter posts based on role
+  let dealershipPosts: PostWithRelations[]
+  
+  if (profile.role === 'owner') {
+    // Owners see ALL posts across all dealerships
+    dealershipPosts = allPosts as PostWithRelations[] || []
+  } else if (profile.role === 'manager' || profile.role === 'admin') {
+    // Managers/Admins see their dealership's posts
+    dealershipPosts = (allPosts as PostWithRelations[] || []).filter(post => 
+      post.profiles?.dealership_id === profile.dealership_id
+    )
+  } else {
+    // Salespeople see only their own posts
+    dealershipPosts = (allPosts as PostWithRelations[] || []).filter(post => 
+      post.profiles?.email === profile.email
+    )
+  }
 
   // Get stats
   const totalPosts = dealershipPosts.length
@@ -107,7 +120,14 @@ export default async function AnalyticsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
-        <p className="text-gray-600 mt-1">Monitor team performance and posting activity</p>
+        <p className="text-gray-600 mt-1">
+          {profile.role === 'owner' 
+            ? 'Organization-wide analytics across all dealerships'
+            : profile.role === 'manager' || profile.role === 'admin'
+            ? 'Monitor team performance and posting activity'
+            : 'Your personal posting analytics and performance'
+          }
+        </p>
       </div>
 
       {/* Quick Stats */}
@@ -171,43 +191,49 @@ export default async function AnalyticsPage() {
           <CardTitle>Performance by Salesperson</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">Name</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-700">Total Posts</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-700">Posted</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-700">Pending</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-700">Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {salespeople.map((person, index) => {
-                  const rate = person.total > 0 ? Math.round((person.posted / person.total) * 100) : 0
-                  return (
-                    <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">{person.name}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{person.email}</td>
-                      <td className="py-3 px-4 text-center font-medium">{person.total}</td>
-                      <td className="py-3 px-4 text-center text-green-600 font-medium">{person.posted}</td>
-                      <td className="py-3 px-4 text-center text-yellow-600 font-medium">{person.pending}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`px-2 py-1 rounded text-sm font-medium ${
-                          rate >= 80 ? 'bg-green-100 text-green-800' :
-                          rate >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {rate}%
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {salespeople.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No posts found
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium text-gray-700">Name</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-700">Total Posts</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-700">Posted</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-700">Pending</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-700">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salespeople.map((person, index) => {
+                    const rate = person.total > 0 ? Math.round((person.posted / person.total) * 100) : 0
+                    return (
+                      <tr key={index} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">{person.name}</td>
+                        <td className="py-3 px-4 text-sm text-gray-600">{person.email}</td>
+                        <td className="py-3 px-4 text-center font-medium">{person.total}</td>
+                        <td className="py-3 px-4 text-center text-green-600 font-medium">{person.posted}</td>
+                        <td className="py-3 px-4 text-center text-yellow-600 font-medium">{person.pending}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2 py-1 rounded text-sm font-medium ${
+                            rate >= 80 ? 'bg-green-100 text-green-800' :
+                            rate >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {rate}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -217,41 +243,47 @@ export default async function AnalyticsPage() {
           <CardTitle>Recent Posts</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {recentPosts.map((post) => (
-              <div key={post.id} className="flex items-start justify-between border-b pb-4">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <p className="font-medium text-gray-900">
-                      {post.profiles?.full_name || 'Unknown'}
+          {recentPosts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No recent posts
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentPosts.map((post) => (
+                <div key={post.id} className="flex items-start justify-between border-b pb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <p className="font-medium text-gray-900">
+                        {post.profiles?.full_name || 'Unknown'}
+                      </p>
+                      <span className="text-sm text-gray-500">→</span>
+                      <p className="text-sm text-gray-600">
+                        {post.facebook_groups?.name || 'Unknown Group'}
+                      </p>
+                      {post.facebook_groups?.territories && (
+                        <>
+                          <span className="text-sm text-gray-500">•</span>
+                          <p className="text-sm text-gray-500">
+                            {post.facebook_groups.territories.name}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(post.scheduled_for).toLocaleString()}
                     </p>
-                    <span className="text-sm text-gray-500">→</span>
-                    <p className="text-sm text-gray-600">
-                      {post.facebook_groups?.name || 'Unknown Group'}
-                    </p>
-                    {post.facebook_groups?.territories && (
-                      <>
-                        <span className="text-sm text-gray-500">•</span>
-                        <p className="text-sm text-gray-500">
-                          {post.facebook_groups.territories.name}
-                        </p>
-                      </>
-                    )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(post.scheduled_for).toLocaleString()}
-                  </p>
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${
+                    post.status === 'posted' ? 'bg-green-100 text-green-800' :
+                    post.status === 'ready' ? 'bg-blue-100 text-blue-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {post.status}
+                  </span>
                 </div>
-                <span className={`px-2 py-1 text-xs font-medium rounded ${
-                  post.status === 'posted' ? 'bg-green-100 text-green-800' :
-                  post.status === 'ready' ? 'bg-blue-100 text-blue-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {post.status}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
