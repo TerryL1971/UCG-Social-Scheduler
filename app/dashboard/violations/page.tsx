@@ -12,7 +12,9 @@ import {
   XCircle,
   Clock,
   MessageSquare,
-  User
+  User,
+  Mail,
+  MessageCircle
 } from 'lucide-react'
 
 type Violation = {
@@ -75,6 +77,7 @@ export default function ViolationsPage() {
         .from('scheduled_posts')
         .select(`
           id,
+          user_id,
           scheduled_for,
           status,
           violation_status,
@@ -82,11 +85,6 @@ export default function ViolationsPage() {
           authorization_requested_at,
           authorization_granted_at,
           generated_content,
-          profiles (
-            full_name,
-            email,
-            dealership_id
-          ),
           facebook_groups (
             name,
             territory_id,
@@ -96,16 +94,42 @@ export default function ViolationsPage() {
         .eq('territory_violation_acknowledged', true)
         .order('authorization_requested_at', { ascending: false, nullsFirst: false })
 
-      const { data } = await query
+      const { data, error } = await query
+      
+      console.log('🔍 Raw violations data:', data)
+      console.log('❌ Query error:', error)
+      console.log('👤 Your profile:', profile)
+
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
+
+      // Now fetch profile info separately for each post
+      const userIds = [...new Set((data || []).map(v => v.user_id))]
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, dealership_id')
+        .in('id', userIds)
+
+      console.log('👥 Profiles data:', profilesData)
+
+      // Map profiles to violations
+      const violationsWithProfiles = (data || []).map(v => ({
+        ...v,
+        profiles: (profilesData || []).find(p => p.id === v.user_id)
+      }))
 
       // Filter by dealership unless owner
-      let filteredData = data || []
+      let filteredData = violationsWithProfiles
       if (profile?.role !== 'owner') {
-        filteredData = (data || []).filter(v => {
-          const profileData = Array.isArray(v.profiles) ? v.profiles[0] : v.profiles
-          return profileData?.dealership_id === profile?.dealership_id
+        filteredData = violationsWithProfiles.filter(v => {
+          console.log('Checking violation:', v.id, 'User dealership:', v.profiles?.dealership_id, 'Your dealership:', profile?.dealership_id)
+          return v.profiles?.dealership_id === profile?.dealership_id
         })
       }
+      
+      console.log('✅ Filtered violations:', filteredData.length)
 
       setViolations(filteredData.map(item => {
         const profileData = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
@@ -185,6 +209,25 @@ export default function ViolationsPage() {
     } finally {
       setActionLoading(null)
     }
+  }
+
+  const sendEmail = (email: string, name: string, violationType: string) => {
+    const subject = encodeURIComponent('Territory Violation - Action Required')
+    const body = encodeURIComponent(
+      `Hi ${name},\n\nI noticed you have a ${violationType} territory violation that needs attention. Please review and take appropriate corrective action:\n\n1. Edit the post to change the group to one in your territory\n2. Request authorization if you have a valid reason\n3. Add a justification explaining the situation\n4. Delete the post if it was created in error\n\nPlease address this as soon as possible.\n\nBest regards`
+    )
+    window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank')
+  }
+
+  const sendWhatsApp = (violation: Violation) => {
+    // For demo, we'll show an alert since we don't have real phone numbers
+    alert(`WhatsApp feature: In production, this would send a message to ${violation.profiles?.full_name}'s phone number about their ${violation.violation_status} violation.`)
+    
+    // Real implementation would be:
+    // const phone = violation.profiles?.phone || ''
+    // const cleanPhone = phone.replace(/[^0-9]/g, '')
+    // const message = encodeURIComponent(`Hi ${violation.profiles?.full_name}, please review your territory violation.`)
+    // window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank')
   }
 
   const getFilteredViolations = () => {
@@ -409,6 +452,32 @@ export default function ViolationsPage() {
                   <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded">
                     <p className="text-sm font-medium text-purple-900 mb-1">Salesperson Justification:</p>
                     <p className="text-sm text-purple-800">{violation.violation_justification}</p>
+                  </div>
+                )}
+
+                {/* Contact buttons for unresolved violations */}
+                {(violation.violation_status === 'unresolved' || violation.violation_status === 'denied') && (
+                  <div className="mb-4 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => sendEmail(
+                        violation.profiles?.email || '', 
+                        violation.profiles?.full_name || 'Salesperson',
+                        violation.violation_status
+                      )}
+                    >
+                      <Mail className="w-4 h-4 mr-1" />
+                      Email Follow-up
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => sendWhatsApp(violation)}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-1" />
+                      WhatsApp
+                    </Button>
                   </div>
                 )}
 
