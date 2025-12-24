@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { MapPin, Users, Building2, Edit, Save, X } from 'lucide-react'
+import { TerritoryRequestSystem } from '@/components/TerritoryRequestSystem'
 
 interface Territory {
   id: string
@@ -47,6 +48,7 @@ export default function TerritoriesPage() {
   const [loading, setLoading] = useState(true)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<'salesperson' | 'manager' | 'admin' | 'owner'>('salesperson')
 
   const supabase = createClient()
 
@@ -57,6 +59,20 @@ export default function TerritoriesPage() {
 
   const fetchData = async () => {
     setLoading(true)
+
+    // Get current user's role
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      
+      if (profile) {
+        setUserRole(profile.role as 'salesperson' | 'manager' | 'admin' | 'owner')
+      }
+    }
 
     const [territoriesRes, groupsRes, profilesRes] = await Promise.all([
       supabase
@@ -152,6 +168,8 @@ export default function TerritoriesPage() {
     }
   }
 
+  const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'owner'
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-96">Loading territories...</div>
   }
@@ -163,220 +181,232 @@ export default function TerritoriesPage() {
         <p className="text-gray-600 mt-1">Manage territories, assign groups, and control access</p>
       </div>
 
-      {/* Territory Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {territories.map(territory => {
-          const territoryGroups = groups.filter(g => g.territory_id === territory.id)
-          const territoryUsers = profiles.filter(p => 
-            p.profile_territories?.some(pt => pt.territory_id === territory.id)
-          )
+      {/* Territory Request System - Shows for all users */}
+      <TerritoryRequestSystem userRole={userRole} />
 
-          return (
-            <Card key={territory.id}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{territory.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      {territory.dealerships?.name}
-                    </p>
-                  </div>
-                  <MapPin className="w-5 h-5 text-purple-600" />
-                </div>
+      {/* Territory Overview - Only show to managers */}
+      {isManager && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {territories.map(territory => {
+            const territoryGroups = groups.filter(g => g.territory_id === territory.id)
+            const territoryUsers = profiles.filter(p => 
+              p.profile_territories?.some(pt => pt.territory_id === territory.id)
+            )
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Facebook Groups:</span>
-                    <span className="font-semibold">{territoryGroups.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Salespeople:</span>
-                    <span className="font-semibold">{territoryUsers.length}</span>
-                  </div>
-                </div>
-
-                {territory.cities && territory.cities.length > 0 && (
-                  <div className="mt-3 pt-3 border-t">
-                    <p className="text-xs text-gray-500 font-medium mb-1">Cities:</p>
-                    <p className="text-xs text-gray-600">{territory.cities.join(', ')}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* Facebook Groups Assignment */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center mb-4">
-            <Building2 className="w-5 h-5 mr-2 text-purple-600" />
-            <h2 className="text-xl font-semibold">Facebook Groups</h2>
-          </div>
-
-          <div className="space-y-3">
-            {groups.map(group => (
-              <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">{group.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {group.territory_id ? (
-                      <span className="text-green-700">
-                        ✓ {group.territories?.name || 'Assigned'}
-                      </span>
-                    ) : (
-                      <span className="text-red-600">⚠️ No territory assigned</span>
-                    )}
-                  </p>
-                </div>
-
-                {editingGroupId === group.id ? (
-                  <div className="flex items-center gap-2">
-                    <select
-                      className="px-3 py-1 border border-gray-300 rounded text-sm"
-                      defaultValue={group.territory_id || ''}
-                      onChange={(e) => updateGroupTerritory(group.id, e.target.value || null)}
-                    >
-                      <option value="">None</option>
-                      {territories.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditingGroupId(null)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setEditingGroupId(group.id)}
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    Assign
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Salespeople Territory Assignment */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center mb-4">
-            <Users className="w-5 h-5 mr-2 text-purple-600" />
-            <h2 className="text-xl font-semibold">Salespeople Territory Access</h2>
-          </div>
-
-          <div className="space-y-3">
-            {profiles.map(profile => {
-              const assignedTerritories = profile.profile_territories || []
-              const primaryTerritory = assignedTerritories.find(pt => pt.is_primary)
-
-              return (
-                <div key={profile.id} className="p-4 bg-gray-50 rounded-lg">
+            return (
+              <Card key={territory.id}>
+                <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-medium text-gray-900">{profile.full_name}</h3>
-                      <p className="text-sm text-gray-600">{profile.email}</p>
+                      <h3 className="font-semibold text-gray-900">{territory.name}</h3>
+                      <p className="text-sm text-gray-600">
+                        {territory.dealerships?.name}
+                      </p>
                     </div>
-                    {editingProfileId === profile.id ? (
-                      <Button
-                        size="sm"
-                        onClick={() => setEditingProfileId(null)}
+                    <MapPin className="w-5 h-5 text-red-600" />
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Facebook Groups:</span>
+                      <span className="font-semibold">{territoryGroups.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Salespeople:</span>
+                      <span className="font-semibold">{territoryUsers.length}</span>
+                    </div>
+                  </div>
+
+                  {territory.cities && territory.cities.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs text-gray-500 font-medium mb-1">Cities:</p>
+                      <p className="text-xs text-gray-600">{territory.cities.join(', ')}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Facebook Groups Assignment - Only show to managers */}
+      {isManager && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center mb-4">
+              <Building2 className="w-5 h-5 mr-2 text-red-600" />
+              <h2 className="text-xl font-semibold">Facebook Groups</h2>
+            </div>
+
+            <div className="space-y-3">
+              {groups.map(group => (
+                <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">{group.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      {group.territory_id ? (
+                        <span className="text-green-700">
+                          ✓ {group.territories?.name || 'Assigned'}
+                        </span>
+                      ) : (
+                        <span className="text-red-600">⚠️ No territory assigned</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {editingGroupId === group.id ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="px-3 py-1 border border-gray-300 rounded text-sm"
+                        defaultValue={group.territory_id || ''}
+                        onChange={(e) => updateGroupTerritory(group.id, e.target.value || null)}
                       >
-                        <Save className="w-4 h-4 mr-1" />
-                        Done
-                      </Button>
-                    ) : (
+                        <option value="">None</option>
+                        {territories.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditingProfileId(profile.id)}
+                        onClick={() => setEditingGroupId(null)}
                       >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit
+                        <X className="w-4 h-4" />
                       </Button>
-                    )}
-                  </div>
-
-                  {editingProfileId === profile.id ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {territories.map(territory => {
-                          const isAssigned = assignedTerritories.some(pt => pt.territory_id === territory.id)
-                          const isPrimary = primaryTerritory?.territory_id === territory.id
-                          
-                          return (
-                            <div key={territory.id} className="relative">
-                              <button
-                                onClick={() => toggleProfileTerritory(profile, territory.id)}
-                                className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors ${
-                                  isAssigned
-                                    ? isPrimary
-                                      ? 'bg-purple-600 text-white ring-2 ring-purple-400 ring-offset-2'
-                                      : 'bg-purple-600 text-white'
-                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                }`}
-                              >
-                                {isAssigned ? '✓ ' : ''}
-                                {territory.name.replace(' Territory', '')}
-                                {isPrimary && <span className="ml-1">⭐</span>}
-                              </button>
-                              {isAssigned && !isPrimary && (
-                                <button
-                                  onClick={() => setPrimaryTerritory(profile.id, territory.id)}
-                                  className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 text-yellow-900 rounded-full text-xs hover:bg-yellow-500"
-                                  title="Set as primary"
-                                >
-                                  ⭐
-                                </button>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <p className="text-xs text-gray-600 italic">
-                        💡 Click territories to assign/unassign. Click ⭐ to set primary territory.
-                      </p>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {assignedTerritories.length > 0 ? (
-                        assignedTerritories.map(pt => {
-                          const territory = territories.find(t => t.id === pt.territory_id)
-                          return territory ? (
-                            <span
-                              key={pt.territory_id}
-                              className={`px-2 py-1 rounded text-sm ${
-                                pt.is_primary
-                                  ? 'bg-purple-600 text-white font-medium'
-                                  : 'bg-purple-100 text-purple-800'
-                              }`}
-                            >
-                              {territory.name}
-                              {pt.is_primary && ' ⭐'}
-                            </span>
-                          ) : null
-                        })
-                      ) : (
-                        <span className="text-sm text-gray-500 italic">No territories assigned</span>
-                      )}
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingGroupId(group.id)}
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Assign
+                    </Button>
                   )}
                 </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Salespeople Territory Assignment - Only show to managers */}
+      {isManager && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center mb-4">
+              <Users className="w-5 h-5 mr-2 text-red-600" />
+              <h2 className="text-xl font-semibold">Salespeople Territory Access</h2>
+            </div>
+
+            <div className="space-y-3">
+              {profiles.map(profile => {
+                const assignedTerritories = profile.profile_territories || []
+                const primaryTerritory = assignedTerritories.find(pt => pt.is_primary)
+
+                return (
+                  <div key={profile.id} className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-medium text-gray-900">{profile.full_name}</h3>
+                        <p className="text-sm text-gray-600">{profile.email}</p>
+                      </div>
+                      {editingProfileId === profile.id ? (
+                        <Button
+                          size="sm"
+                          onClick={() => setEditingProfileId(null)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Save className="w-4 h-4 mr-1" />
+                          Done
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingProfileId(profile.id)}
+                          className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          <Edit className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+
+                    {editingProfileId === profile.id ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {territories.map(territory => {
+                            const isAssigned = assignedTerritories.some(pt => pt.territory_id === territory.id)
+                            const isPrimary = primaryTerritory?.territory_id === territory.id
+                            
+                            return (
+                              <div key={territory.id} className="relative">
+                                <button
+                                  onClick={() => toggleProfileTerritory(profile, territory.id)}
+                                  className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors ${
+                                    isAssigned
+                                      ? isPrimary
+                                        ? 'bg-red-600 text-white ring-2 ring-red-400 ring-offset-2'
+                                        : 'bg-red-500 text-white hover:bg-red-600'
+                                      : 'bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                                  }`}
+                                >
+                                  {isAssigned ? '✓ ' : ''}
+                                  {territory.name.replace(' Territory', '')}
+                                  {isPrimary && <span className="ml-1">⭐</span>}
+                                </button>
+                                {isAssigned && !isPrimary && (
+                                  <button
+                                    onClick={() => setPrimaryTerritory(profile.id, territory.id)}
+                                    className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 text-yellow-900 rounded-full text-xs hover:bg-yellow-500"
+                                    title="Set as primary"
+                                  >
+                                    ⭐
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <p className="text-xs text-gray-600 italic">
+                          💡 Click territories to assign/unassign. Click ⭐ to set primary territory.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {assignedTerritories.length > 0 ? (
+                          assignedTerritories.map(pt => {
+                            const territory = territories.find(t => t.id === pt.territory_id)
+                            return territory ? (
+                              <span
+                                key={pt.territory_id}
+                                className={`px-2 py-1 rounded text-sm ${
+                                  pt.is_primary
+                                    ? 'bg-red-600 text-white font-medium'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {territory.name}
+                                {pt.is_primary && ' ⭐'}
+                              </span>
+                            ) : null
+                          })
+                        ) : (
+                          <span className="text-sm text-gray-500 italic">No territories assigned</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

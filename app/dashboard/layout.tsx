@@ -51,7 +51,7 @@ export default async function DashboardLayout({
   { name: 'Groups', href: '/dashboard/groups', icon: Users, show: true },
   { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, show: true },
   { name: 'Templates', href: '/dashboard/templates', icon: FileText, show: true },
-  { name: 'Territories', href: '/dashboard/territories', icon: MapPin, show: isManager },
+  { name: 'Territories', href: '/dashboard/territories', icon: MapPin, show: true }, // Show for everyone
   { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, show: !isManager }, // ADD THIS LINE
   { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, show: isManager },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, show: true },
@@ -131,7 +131,7 @@ export default async function DashboardLayout({
       </aside>
 
       {/* Main Content */}
-      <main className="pl-64">
+      <main className="pl-64 h-screen overflow-y-auto">
         <div className="max-w-7xl mx-auto px-8 py-8">
           {children}
         </div>
