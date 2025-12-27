@@ -4,10 +4,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getApprovedTerritoriesWithDetails } from '@/lib/territoryHelpers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin } from 'lucide-react'
+import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin, AlertCircle } from 'lucide-react'
 
 type Territory = {
   id: string
@@ -35,6 +36,7 @@ type FacebookGroup = {
 export default function GroupsPage() {
   const [groups, setGroups] = useState<FacebookGroup[]>([])
   const [territories, setTerritories] = useState<Territory[]>([])
+  const [userRole, setUserRole] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -84,22 +86,47 @@ export default function GroupsPage() {
   const fetchTerritories = useCallback(async () => {
     try {
       const supabase = createClient()
-      const { data } = await supabase
-        .from('territories')
-        .select('id, name, dealerships(name)')
-        .order('name')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-      console.log('Raw territories data:', data) // ADD THIS LINE
+      // Fetch user role
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
 
-      if (data) {
-        setTerritories(data.map(t => {
-          const dealership = Array.isArray(t.dealerships) ? t.dealerships[0] : t.dealerships
-          return {
-            id: t.id,
-            name: t.name,
-            dealership_name: dealership?.name || ''
-          }
-        }))
+      const role = profileData?.role || ''
+      setUserRole(role)
+
+      // Fetch territories based on role
+      if (role === 'salesperson') {
+        // For salespeople, only get approved territories
+        const approvedTerritories = await getApprovedTerritoriesWithDetails()
+        setTerritories(approvedTerritories.map(t => ({
+          id: t.id,
+          name: t.name,
+          dealership_name: ''
+        })))
+      } else {
+        // For managers/admins, get all territories
+        const { data } = await supabase
+          .from('territories')
+          .select('id, name, dealerships(name)')
+          .order('name')
+
+        console.log('Raw territories data:', data)
+
+        if (data) {
+          setTerritories(data.map(t => {
+            const dealership = Array.isArray(t.dealerships) ? t.dealerships[0] : t.dealerships
+            return {
+              id: t.id,
+              name: t.name,
+              dealership_name: dealership?.name || ''
+            }
+          }))
+        }
       }
     } catch (err) {
       console.error('Error fetching territories:', err)
@@ -111,8 +138,8 @@ export default function GroupsPage() {
     
     const loadData = async () => {
       if (mounted) {
-        await fetchGroups()
         await fetchTerritories()
+        await fetchGroups()
       }
     }
     
@@ -125,6 +152,15 @@ export default function GroupsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate territory access for salespeople
+    if (userRole === 'salesperson' && formData.territory_id) {
+      const approvedTerritoryIds = territories.map(t => t.id)
+      if (!approvedTerritoryIds.includes(formData.territory_id)) {
+        alert('You can only create groups in your approved territories')
+        return
+      }
+    }
     
     try {
       const supabase = createClient()
@@ -237,11 +273,81 @@ export default function GroupsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Facebook Groups</h1>
           <p className="text-gray-600 mt-1">Manage the groups you post to</p>
         </div>
-        <Button onClick={() => setShowAddForm(!showAddForm)}>
-          <Plus className="w-4 h-4 mr-2" />
+        <button
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            whiteSpace: 'nowrap',
+            borderRadius: '0.375rem',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            backgroundColor: '#dc2626',
+            color: '#ffffff',
+            height: '2.25rem',
+            padding: '0.5rem 1rem',
+            border: 'none',
+            cursor: territories.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: territories.length === 0 ? 0.5 : 1,
+            transition: 'all 0.2s'
+          }}
+          disabled={territories.length === 0}
+          onClick={() => setShowAddForm(!showAddForm)}
+          onMouseEnter={(e) => {
+            if (territories.length > 0) {
+              e.currentTarget.style.backgroundColor = '#b91c1c'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (territories.length > 0) {
+              e.currentTarget.style.backgroundColor = '#dc2626'
+            }
+          }}
+        >
+          <Plus className="w-4 h-4" />
           Add Group
-        </Button>
+        </button>
       </div>
+
+      {/* Warning if salesperson has no territory access */}
+      {userRole === 'salesperson' && territories.length === 0 && (
+        <Card className="border-yellow-300 bg-yellow-50">
+          <CardContent className="py-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-yellow-900 mb-1">
+                  No Territory Access
+                </h3>
+                <p className="text-sm text-yellow-800">
+                  You don&apos;t have access to any territories yet. Please request territory 
+                  access from your manager in the{' '}
+                  <a href="/dashboard/territories" className="underline font-medium">
+                    Territory Management
+                  </a>{' '}
+                  section to create groups.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Territory info for salespeople */}
+      {userRole === 'salesperson' && territories.length > 0 && (
+        <Card className="border-blue-300 bg-blue-50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-blue-600" />
+              <span className="text-sm text-blue-900">
+                <strong>Your Approved Territories:</strong>{' '}
+                {territories.map(t => t.name).join(', ')}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error Message */}
       {errorMessage && (
@@ -305,7 +411,14 @@ export default function GroupsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Territory</label>
+                  <label className="text-sm font-medium">
+                    Territory
+                    {userRole === 'salesperson' && (
+                      <span className="text-xs text-gray-500 ml-2">
+                        (Only your approved territories)
+                      </span>
+                    )}
+                  </label>
                   <select
                     value={formData.territory_id}
                     onChange={(e) => setFormData({ ...formData, territory_id: e.target.value })}
@@ -318,8 +431,11 @@ export default function GroupsPage() {
                       </option>
                     ))}
                   </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                    ⚠️ Salespeople will get a warning if posting outside their assigned territory
+                  <p className="text-xs text-gray-500 mt-1">
+                    {userRole === 'salesperson' 
+                      ? '⚠️ You can only create groups in your approved territories'
+                      : '⚠️ Salespeople will get a warning if posting outside their assigned territory'
+                    }
                   </p>
                 </div>
               </div>
@@ -356,7 +472,30 @@ export default function GroupsPage() {
               </div>
 
               <div className="flex space-x-3">
-                <Button type="submit">Add Group</Button>
+                <button
+                  type="submit"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    whiteSpace: 'nowrap',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    height: '2.25rem',
+                    padding: '0.5rem 1rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b91c1c'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                >
+                  Add Group
+                </button>
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
                   Cancel
                 </Button>
@@ -375,10 +514,41 @@ export default function GroupsPage() {
             <p className="text-gray-600 mb-4">
               Add your first Facebook group to start scheduling posts
             </p>
-            <Button onClick={() => setShowAddForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />
+            <button
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                whiteSpace: 'nowrap',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                backgroundColor: '#dc2626',
+                color: '#ffffff',
+                height: '2.25rem',
+                padding: '0.5rem 1rem',
+                border: 'none',
+                cursor: territories.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: territories.length === 0 ? 0.5 : 1,
+                transition: 'all 0.2s'
+              }}
+              disabled={territories.length === 0}
+              onClick={() => setShowAddForm(true)}
+              onMouseEnter={(e) => {
+                if (territories.length > 0) {
+                  e.currentTarget.style.backgroundColor = '#b91c1c'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (territories.length > 0) {
+                  e.currentTarget.style.backgroundColor = '#dc2626'
+                }
+              }}
+            >
+              <Plus className="w-4 h-4" />
               Add Your First Group
-            </Button>
+            </button>
           </CardContent>
         </Card>
       ) : (

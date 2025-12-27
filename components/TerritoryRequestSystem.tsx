@@ -266,15 +266,34 @@ export function TerritoryRequestSystem({ userRole }: { userRole: UserRole }) {
                 <MapPin className="w-5 h-5 text-red-600" />
                 <h3 className="text-lg font-semibold">Request Territory Access</h3>
               </div>
-              <Button className="bg-red-600 hover:bg-red-700 text-black"
+              <button
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  whiteSpace: 'nowrap',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  height: '2.25rem',
+                  padding: '0.5rem 1rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b91c1c'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
                 onClick={() => {
                   console.log('🔘 Button clicked!')
                   setShowRequestModal(true)
                 }}
               >
-                <Send className="w-4 h-4 mr-2" />
+                <Send className="w-4 h-4" />
                 New Request
-              </Button>
+              </button>
             </div>
             <p className="text-sm text-gray-600">
               Need access to a territory? Submit a request and your manager will review it.
