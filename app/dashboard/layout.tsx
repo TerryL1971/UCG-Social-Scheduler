@@ -1,141 +1,204 @@
 // app/dashboard/layout.tsx
 
-import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { redirect } from 'next/navigation'
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import ProfileAvatarUpload from '@/components/ProfileAvatarUpload'
 import { 
   LayoutDashboard, 
-  Users, 
   Calendar, 
+  Users, 
   FileText, 
-  BarChart3, 
+  MapPin, 
+  AlertTriangle,
+  BarChart3,
   Settings,
   LogOut,
-  AlertTriangle,
-  MapPin,
-  Building2
+  Menu,
+  X
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createServerSupabaseClient()
+  const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createClient()
+  const [userId, setUserId] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('')
+  const [userName, setUserName] = useState<string>('')
+  const [avatarUrl, setAvatarUrl] = useState<string>('')
+  const [avatarType, setAvatarType] = useState<'image' | 'emoji' | 'initial'>('initial')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
 
-  if (!user) {
-    redirect('/login')
+    setUserId(user.id)
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, full_name, avatar_url, avatar_type')
+      .eq('id', user.id)
+      .single()
+
+    if (profile) {
+      setUserRole(profile.role)
+      setUserName(profile.full_name || user.email || 'User')
+      setAvatarUrl(profile.avatar_url || '')
+      setAvatarType(profile.avatar_type || 'initial')
+    }
   }
 
-  // Get user profile with role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*, dealerships(name, location)')
-    .eq('id', user.id)
-    .single()
+  useEffect(() => {
+    checkUser()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const isManager =
-  profile?.role === 'manager' ||
-  profile?.role === 'admin' ||
-  profile?.role === 'owner'
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, show: true },
-  { name: 'Management', href: '/dashboard/management', icon: Building2, show: isManager },
-  { name: 'Groups', href: '/dashboard/groups', icon: Users, show: true },
-  { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, show: true },
-  { name: 'Templates', href: '/dashboard/templates', icon: FileText, show: true },
-  { name: 'Territories', href: '/dashboard/territories', icon: MapPin, show: true }, // Show for everyone
-  { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, show: !isManager }, // ADD THIS LINE
-  { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, show: isManager },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, show: true },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings, show: true },
-]
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Territories', href: '/dashboard/territories', icon: MapPin, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, roles: ['salesperson'] },
+    { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, roles: ['manager', 'admin', 'owner'] },
+    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'owner'] },
+    { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'owner'] },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+  ]
+
+  const filteredNavigation = navigation.filter(item => 
+    item.roles.includes(userRole)
+  )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 flex flex-col">
-        {/* Logo */}
-        <div className="h-16 flex items-center px-6 border-b border-gray-200">
-          <Image
-            src="/ucg-logo.png"
-            alt="UCG Logo"
-            width={40}
-            height={40}
-            style={{ width: 'auto', height: 'auto' }}
-            className="object-contain"
-          />
-          <span className="ml-3 text-lg font-bold text-gray-900">UCG Scheduler</span>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-          {navigation.map((item) => {
-            if (!item.show) return null
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors"
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white border-b-4 border-red-600 shadow-sm sticky top-0 z-40">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
               >
-                <item.icon className="w-5 h-5 mr-3" />
-                {item.name}
+                {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+              
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image 
+                  src="/ucg-logo.png" 
+                  alt="Used Car Guys" 
+                  width={120}
+                  height={40}
+                  quality={100}
+                  className="h-10 w-auto"
+                  priority
+                  unoptimized
+                />
+                <div className="hidden sm:block">
+                  <h1 className="text-lg font-bold text-gray-900">
+                    Social Scheduler
+                  </h1>
+                  <p className="text-xs text-gray-600">
+                    Used Car Guys Marketing
+                  </p>
+                </div>
               </Link>
-            )
-          })}
-        </nav>
+            </div>
 
-        {/* User Info & Logout */}
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex items-center mb-3">
-            <div className="shrink-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-              {profile?.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
-            </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {profile?.full_name || 'User'}
-              </p>
-              <p className="text-xs text-gray-500 truncate">
-                {profile?.dealerships
-                  ? `${profile.dealerships.name} - ${profile.dealerships.location}`
-                  : 'No dealership'}
-              </p>
-            </div>
+            {/* User Menu */}
+            {userName && (
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:block text-right">
+                  <p className="text-sm font-medium text-gray-900">{userName}</p>
+                  <p className="text-xs text-gray-600 capitalize">{userRole}</p>
+                </div>
+                <ProfileAvatarUpload
+                  userId={userId}
+                  currentAvatar={avatarUrl}
+                  currentAvatarType={avatarType}
+                  userName={userName}
+                  onUpdate={checkUser}
+                />
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+            )}
           </div>
-          {profile?.role && (
-            <div className="mb-3">
-              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
-              </span>
-            </div>
-          )}
-          <form action="/api/auth/logout" method="POST">
-            <Button 
-              type="submit" 
-              variant="outline" 
-              size="sm" 
-              className="w-full justify-start"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
-          </form>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Content */}
-      <main className="pl-64 h-screen overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="flex">
+        {/* Sidebar */}
+        <aside className={`
+          fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 
+          transform transition-transform duration-300 ease-in-out lg:translate-x-0
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          h-screen lg:h-auto
+        `}>
+          <nav className="h-full overflow-y-auto p-4 space-y-1">
+            {filteredNavigation.map((item) => {
+              const isActive = pathname === item.href
+              const Icon = item.icon
+              
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`
+                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all
+                    ${isActive 
+                      ? 'bg-red-600 hover:bg-red-700' 
+                      : 'text-gray-700 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-gray-700'}`} />
+                  <span className={`${isActive ? 'text-white' : 'text-gray-700'}`}>{item.name}</span>
+                </Link>
+              )
+            })}
+          </nav>
+        </aside>
+
+        {/* Overlay for mobile */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Main Content */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }
