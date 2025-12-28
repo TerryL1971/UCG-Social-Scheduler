@@ -152,7 +152,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div className="p-6 rounded-lg shadow-lg" style={{ background: 'linear-gradient(to right, #dc2626, #b91c1c)' }}>
+      <div className="p-6 rounded-lg shadow-lg" style={{ background: 'linear-gradient(to right, #23326d, #1c295d)' }}>
         <h1 className="text-3xl font-bold text-white">Welcome back, {userName}! 👋</h1>
         <p className="mt-2 text-white">Here&apos;s what&apos;s happening with your social media schedule</p>
       </div>
