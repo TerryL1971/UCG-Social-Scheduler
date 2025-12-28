@@ -4,10 +4,9 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import Image from 'next/image'
-import { Camera, X, Smile } from 'lucide-react'
+import { Camera, X, Sparkles } from 'lucide-react'
 
-type AvatarType = 'image' | 'emoji' | 'initial'
+type AvatarType = 'image' | 'generated' | 'initial'
 
 type ProfileAvatarUploadProps = {
   userId: string
@@ -17,16 +16,19 @@ type ProfileAvatarUploadProps = {
   onUpdate?: () => void
 }
 
-const EMOJI_LIST = [
-  '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
-  '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
-  '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫',
-  '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬',
-  '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢',
-  '👨‍💼', '👩‍💼', '🧑‍💼', '👨‍🔧', '👩‍🔧', '🧑‍🔧', '👨‍💻', '👩‍💻', '🧑‍💻',
-  '🚗', '🏎️', '🚙', '🚕', '🚓', '🚑', '💼', '🔧', '🔨', '⚙️',
-  '🏆', '🎯', '💰', '💎', '⭐', '🌟', '✨', '🎉', '🎊', '🎈'
+// Avatar generation services
+const AVATAR_STYLES = [
+  { id: 'avataaars', name: 'Cartoon', preview: 'avataaars' },
+  { id: 'personas', name: 'Personas', preview: 'personas' },
+  { id: 'bottts', name: 'Robot', preview: 'bottts' },
+  { id: 'lorelei', name: 'Modern', preview: 'lorelei' },
+  { id: 'notionists', name: 'Notion', preview: 'notionists' },
+  { id: 'thumbs', name: 'Thumbs Up', preview: 'thumbs' },
 ]
+
+const generateAvatarUrl = (style: string, seed: string) => {
+  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}&backgroundColor=dc2626,b91c1c,991b1b`
+}
 
 export default function ProfileAvatarUpload({ 
   userId, 
@@ -37,8 +39,7 @@ export default function ProfileAvatarUpload({
 }: ProfileAvatarUploadProps) {
   const [showModal, setShowModal] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [selectedEmoji, setSelectedEmoji] = useState('')
-  const [activeTab, setActiveTab] = useState<'upload' | 'emoji'>('upload')
+  const [activeTab, setActiveTab] = useState<'upload' | 'generate'>('generate')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
@@ -91,32 +92,37 @@ export default function ProfileAvatarUpload({
       alert('Profile picture updated!')
     } catch (err) {
       console.error('Error uploading avatar:', err)
-      alert('Failed to upload image')
+      alert('Failed to upload image. Make sure the storage bucket is set up in Supabase.')
     } finally {
       setUploading(false)
     }
   }
 
-  const handleEmojiSelect = async (emoji: string) => {
-    setSelectedEmoji(emoji)
+  const handleGeneratedAvatar = async (style: string) => {
     setUploading(true)
     try {
+      const avatarUrl = generateAvatarUrl(style, userName + userId)
+
       const { error } = await supabase
         .from('profiles')
         .update({
-          avatar_url: emoji,
-          avatar_type: 'emoji'
+          avatar_url: avatarUrl,
+          avatar_type: 'generated'
         })
         .eq('id', userId)
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw new Error(error.message || 'Database update failed')
+      }
 
       setShowModal(false)
       onUpdate?.()
       alert('Avatar updated!')
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error updating avatar:', err)
-      alert('Failed to update avatar')
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      alert(`Failed to update avatar: ${errorMessage}\n\nMake sure you've run the database migration in Supabase SQL Editor.`)
     } finally {
       setUploading(false)
     }
@@ -149,23 +155,14 @@ export default function ProfileAvatarUpload({
   }
 
   const renderAvatar = () => {
-    if (currentAvatarType === 'image' && currentAvatar) {
+    if ((currentAvatarType === 'image' || currentAvatarType === 'generated') && currentAvatar) {
       return (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={currentAvatar}
           alt={userName}
-          width={40}
-          height={40}
           className="w-full h-full object-cover"
         />
-      )
-    }
-
-    if (currentAvatarType === 'emoji' && currentAvatar) {
-      return (
-        <span className="text-2xl leading-none">
-          {currentAvatar}
-        </span>
       )
     }
 
@@ -186,7 +183,7 @@ export default function ProfileAvatarUpload({
       >
         <div 
           className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
-          style={{ backgroundColor: currentAvatarType === 'image' ? 'transparent' : '#dc2626' }}
+          style={{ backgroundColor: (currentAvatarType === 'image' || currentAvatarType === 'generated') ? 'transparent' : '#dc2626' }}
         >
           {renderAvatar()}
         </div>
@@ -203,9 +200,9 @@ export default function ProfileAvatarUpload({
             if (e.target === e.currentTarget) setShowModal(false)
           }}
         >
-          <div className="bg-white rounded-lg max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold text-gray-900">Update Profile Picture</h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -219,18 +216,15 @@ export default function ProfileAvatarUpload({
             <div className="p-6 flex flex-col items-center border-b">
               <div 
                 className="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden mb-4"
-                style={{ backgroundColor: currentAvatarType === 'image' ? '#e5e7eb' : '#dc2626' }}
+                style={{ backgroundColor: (currentAvatarType === 'image' || currentAvatarType === 'generated') ? '#e5e7eb' : '#dc2626' }}
               >
-                {currentAvatarType === 'image' && currentAvatar ? (
-                  <Image
+                {(currentAvatarType === 'image' || currentAvatarType === 'generated') && currentAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
                     src={currentAvatar}
                     alt={userName}
-                    width={96}
-                    height={96}
                     className="w-full h-full object-cover"
                   />
-                ) : currentAvatarType === 'emoji' && currentAvatar ? (
-                  <span className="text-5xl">{currentAvatar}</span>
                 ) : (
                   <span className="text-white font-semibold text-4xl">
                     {userName.charAt(0).toUpperCase()}
@@ -243,6 +237,17 @@ export default function ProfileAvatarUpload({
             {/* Tabs */}
             <div className="flex border-b">
               <button
+                onClick={() => setActiveTab('generate')}
+                className={`flex-1 px-4 py-3 font-medium transition-colors ${
+                  activeTab === 'generate'
+                    ? 'text-red-600 border-b-2 border-red-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 inline mr-2" />
+                Generate Avatar
+              </button>
+              <button
                 onClick={() => setActiveTab('upload')}
                 className={`flex-1 px-4 py-3 font-medium transition-colors ${
                   activeTab === 'upload'
@@ -253,21 +258,36 @@ export default function ProfileAvatarUpload({
                 <Camera className="w-4 h-4 inline mr-2" />
                 Upload Photo
               </button>
-              <button
-                onClick={() => setActiveTab('emoji')}
-                className={`flex-1 px-4 py-3 font-medium transition-colors ${
-                  activeTab === 'emoji'
-                    ? 'text-red-600 border-b-2 border-red-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Smile className="w-4 h-4 inline mr-2" />
-                Choose Emoji
-              </button>
             </div>
 
             {/* Content */}
             <div className="p-6">
+              {activeTab === 'generate' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    Choose a style for your avatar. It will be unique to you!
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    {AVATAR_STYLES.map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() => handleGeneratedAvatar(style.id)}
+                        disabled={uploading}
+                        className="p-4 border-2 rounded-lg hover:border-red-600 transition-all border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center gap-2"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={generateAvatarUrl(style.preview, userName + userId)}
+                          alt={style.name}
+                          className="w-16 h-16 rounded-full"
+                        />
+                        <span className="text-sm font-medium text-gray-900">{style.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'upload' && (
                 <div className="space-y-4">
                   <input
@@ -287,26 +307,10 @@ export default function ProfileAvatarUpload({
                   <p className="text-xs text-gray-500 text-center">
                     Max file size: 2MB • JPG, PNG, or GIF
                   </p>
-                </div>
-              )}
-
-              {activeTab === 'emoji' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-8 gap-2 max-h-64 overflow-y-auto p-2">
-                    {EMOJI_LIST.map((emoji) => (
-                      <button
-                        key={emoji}
-                        onClick={() => handleEmojiSelect(emoji)}
-                        disabled={uploading}
-                        className={`
-                          text-2xl p-2 rounded-lg hover:bg-gray-100 transition-colors
-                          ${selectedEmoji === emoji ? 'bg-red-100 ring-2 ring-red-600' : ''}
-                          disabled:opacity-50 disabled:cursor-not-allowed
-                        `}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-xs text-yellow-800">
+                      💡 <strong>Note:</strong> Make sure the storage bucket is set up in Supabase. Run the migration SQL first if you haven&apos;t already.
+                    </p>
                   </div>
                 </div>
               )}

@@ -35,7 +35,7 @@ export default function DashboardLayout({
   const [userRole, setUserRole] = useState<string>('')
   const [userName, setUserName] = useState<string>('')
   const [avatarUrl, setAvatarUrl] = useState<string>('')
-  const [avatarType, setAvatarType] = useState<'image' | 'emoji' | 'initial'>('initial')
+  const [avatarType, setAvatarType] = useState<'image' | 'generated' | 'initial'>('initial')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const checkUser = async () => {
@@ -108,8 +108,7 @@ export default function DashboardLayout({
                   src="/ucg-logo.png" 
                   alt="Used Car Guys" 
                   width={120}
-                  height={40}
-                  quality={100}
+                  height={40}      
                   className="h-10 w-auto"
                   priority
                   unoptimized
