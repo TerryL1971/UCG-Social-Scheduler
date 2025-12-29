@@ -159,7 +159,7 @@ export default function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="ucg-card p-6 animate-slide-in">
+        <div className="ucg-card p-6 animate-slide-in">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm font-medium">

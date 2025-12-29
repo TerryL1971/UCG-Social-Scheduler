@@ -71,6 +71,11 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
+  const handleAvatarUpdate = async () => {
+    // Refresh the profile data to show the new avatar
+    await checkUser()
+  }
+
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner'] },
@@ -136,7 +141,7 @@ export default function DashboardLayout({
                   currentAvatar={avatarUrl}
                   currentAvatarType={avatarType}
                   userName={userName}
-                  onUpdate={checkUser}
+                  onUpdate={handleAvatarUpdate}
                 />
                 <button
                   onClick={handleLogout}
