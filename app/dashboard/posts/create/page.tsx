@@ -132,14 +132,26 @@ export default function CreatePostPage() {
     }
 
     setLoading(true)
+    setError(null)
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      if (!user) {
+        throw new Error('Not authenticated. Please log in again.')
+      }
 
       const group = groups.find(g => g.id === selectedGroup)
       const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`)
 
-      const { error } = await supabase
+      console.log('Saving post:', {
+        user_id: user.id,
+        group_id: selectedGroup,
+        territory_id: group?.territory_id,
+        scheduled_for: scheduledFor.toISOString(),
+        content_length: editedContent.length
+      })
+
+      const { data, error } = await supabase
         .from('scheduled_posts')
         .insert({
           user_id: user.id,
@@ -149,16 +161,24 @@ export default function CreatePostPage() {
           scheduled_for: scheduledFor.toISOString(),
           status: 'pending',
           is_ai_generated: true,
-          post_type: postType
+          post_type: postType,
+          paid_by: 'none' // Will be updated when payment system is added
         })
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
 
-      alert('Post scheduled successfully!')
+      console.log('Post saved successfully:', data)
+      alert('Post scheduled successfully! ✅')
       router.push('/dashboard/posts')
     } catch (error) {
       console.error('Error saving post:', error)
-      alert('Failed to save post')
+      const errorMsg = error instanceof Error ? error.message : 'Failed to save post'
+      setError(errorMsg)
+      alert('Error: ' + errorMsg)
     } finally {
       setLoading(false)
     }
