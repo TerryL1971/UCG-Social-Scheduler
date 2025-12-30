@@ -363,11 +363,11 @@ export default function CreatePostPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Time * (24-hour format: HH:MM)
+                  Time *
                 </label>
                 <input
                   ref={timeInputRef}
-                  type="text"
+                  type="time"
                   defaultValue=""
                   onInput={(e) => {
                     const target = e.target as HTMLInputElement
@@ -375,18 +375,14 @@ export default function CreatePostPage() {
                     console.log('Time input event:', newTime)
                     setScheduledTime(newTime)
                   }}
-                  onKeyUp={(e) => {
-                    const target = e.target as HTMLInputElement
-                    const newTime = target.value
-                    console.log('Time keyup:', newTime)
+                  onChange={(e) => {
+                    const newTime = e.target.value
+                    console.log('Time onChange:', newTime)
                     setScheduledTime(newTime)
                   }}
-                  placeholder="14:30"
-                  pattern="[0-9]{2}:[0-9]{2}"
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
-                <p className="text-xs text-gray-500 mt-1">Example: 14:30 for 2:30 PM</p>
               </div>
             </div>
           </div>
