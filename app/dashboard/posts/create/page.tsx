@@ -27,6 +27,7 @@ export default function CreatePostPage() {
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [groups, setGroups] = useState<FacebookGroup[]>([])
+  const [error, setError] = useState<string | null>(null)
   
   // Form state
   const [selectedGroup, setSelectedGroup] = useState('')
@@ -69,9 +70,14 @@ export default function CreatePostPage() {
     }
 
     setGenerating(true)
+    setError(null)
+    setShowPreview(false)
+    
     try {
       const group = groups.find(g => g.id === selectedGroup)
       if (!group) throw new Error('Group not found')
+
+      console.log('Generating post for:', group.name)
 
       const response = await fetch('/api/posts/generate', {
         method: 'POST',
@@ -87,17 +93,33 @@ export default function CreatePostPage() {
       })
 
       const data = await response.json()
+      console.log('API Response:', data)
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate post')
       }
 
+      if (!data.content) {
+        throw new Error('No content received from AI')
+      }
+
       setGeneratedContent(data.content)
       setEditedContent(data.content)
       setShowPreview(true)
+      
+      // Scroll to preview
+      setTimeout(() => {
+        document.getElementById('preview-section')?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        })
+      }, 100)
+      
     } catch (error) {
       console.error('Generation error:', error)
-      alert(error instanceof Error ? error.message : 'Failed to generate post')
+      const errorMsg = error instanceof Error ? error.message : 'Failed to generate post'
+      setError(errorMsg)
+      alert(errorMsg)
     } finally {
       setGenerating(false)
     }
@@ -236,6 +258,13 @@ export default function CreatePostPage() {
       </div>
 
       {/* Generate Button */}
+      {error && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+          <p className="text-red-800 font-semibold">Error generating post:</p>
+          <p className="text-red-600 mt-1">{error}</p>
+        </div>
+      )}
+
       <button
         onClick={handleGeneratePost}
         disabled={!selectedGroup || generating}
@@ -247,7 +276,7 @@ export default function CreatePostPage() {
 
       {/* Generated Content Preview/Edit */}
       {showPreview && generatedContent && (
-        <>
+        <div id="preview-section">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Eye className="w-6 h-6 text-red-600" />
@@ -306,7 +335,7 @@ export default function CreatePostPage() {
             <Save className="w-6 h-6" />
             {loading ? 'Saving...' : 'Schedule Post'}
           </button>
-        </>
+        </div>
       )}
     </div>
   )
