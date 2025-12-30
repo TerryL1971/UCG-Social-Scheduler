@@ -2,369 +2,312 @@
 
 'use client'
 
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { getApprovedTerritoriesWithDetails } from '@/lib/territoryHelpers'
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Calendar, Loader2, MapPin, AlertCircle } from 'lucide-react'
-
-type Territory = {
-  id: string
-  name: string
-}
+import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye } from 'lucide-react'
 
 type FacebookGroup = {
   id: string
   name: string
-  territory_id: string | null
+  territory_id: string
+  group_type?: string
+  description?: string
+  territories?: {
+    name: string
+  }
 }
 
-type Profile = {
-  role: string
-  dealership_id: string | null
-}
+type PostType = 'general' | 'vehicle_spotlight' | 'special_offer' | 'community' | 'testimonial_style'
 
 export default function CreatePostPage() {
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [territories, setTerritories] = useState<Territory[]>([])
-  const [groups, setGroups] = useState<FacebookGroup[]>([])
-  const [selectedGroupId, setSelectedGroupId] = useState('')
-  const [scheduledDate, setScheduledDate] = useState('')
-  const [scheduledTime, setScheduledTime] = useState('')
-  const [content, setContent] = useState('')
-  const [generating, setGenerating] = useState(false)
-  const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+  
+  const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [groups, setGroups] = useState<FacebookGroup[]>([])
+  
+  // Form state
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [postType, setPostType] = useState<PostType>('general')
+  const [specialOffer, setSpecialOffer] = useState('')
+  const [generatedContent, setGeneratedContent] = useState('')
+  const [editedContent, setEditedContent] = useState('')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('')
+  
+  // Preview mode
+  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
-    fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    loadGroups()
+  })
 
-  const fetchData = async () => {
-    setLoading(true)
+  const loadGroups = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
+      if (!user) return
 
-      // Fetch user profile to get role
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, dealership_id')
-        .eq('id', user.id)
-        .single()
-
-      if (profileError) throw profileError
-      setProfile(profileData)
-
-      // Fetch territories based on role
-      if (profileData.role === 'salesperson') {
-        // For salespeople, only get approved territories
-        const approvedTerritories = await getApprovedTerritoriesWithDetails()
-        setTerritories(approvedTerritories)
-      } else {
-        // For managers/admins, get all territories
-        const { data: allTerritories, error: territoriesError } = await supabase
-          .from('territories')
-          .select('id, name')
-          .order('name')
-
-        if (territoriesError) throw territoriesError
-        setTerritories(allTerritories || [])
-      }
-
-      // Fetch groups (will be filtered by territory selection)
-      const { data: groupsData, error: groupsError } = await supabase
+      const { data, error } = await supabase
         .from('facebook_groups')
-        .select('id, name, territory_id')
-        .order('name')
+        .select('*, territories(name)')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
 
-      if (groupsError) throw groupsError
-      setGroups(groupsData || [])
-
-    } catch (err) {
-      console.error('Error fetching data:', err)
-      alert('Failed to load data')
-    } finally {
-      setLoading(false)
+      if (error) throw error
+      setGroups(data || [])
+    } catch (error) {
+      console.error('Error loading groups:', error)
     }
   }
 
-  const generateContent = async () => {
-    if (!selectedGroupId) {
-      alert('Please select a group')
+  const handleGeneratePost = async () => {
+    if (!selectedGroup) {
+      alert('Please select a Facebook group')
       return
     }
 
     setGenerating(true)
     try {
+      const group = groups.find(g => g.id === selectedGroup)
+      if (!group) throw new Error('Group not found')
+
       const response = await fetch('/api/posts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          groupId: selectedGroupId,
-          context: 'social media post'
+          groupName: group.name,
+          groupType: group.group_type,
+          territory: group.territories?.name || 'Unknown',
+          groupDescription: group.description,
+          postType,
+          specialOffer: postType === 'special_offer' ? specialOffer : undefined
         })
       })
 
       const data = await response.json()
-      if (data.content) {
-        setContent(data.content)
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate post')
       }
-    } catch (err) {
-      console.error('Error generating content:', err)
-      alert('Failed to generate content')
+
+      setGeneratedContent(data.content)
+      setEditedContent(data.content)
+      setShowPreview(true)
+    } catch (error) {
+      console.error('Generation error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to generate post')
     } finally {
       setGenerating(false)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!selectedGroupId || !scheduledDate || !scheduledTime || !content) {
-      alert('Please fill in all fields')
+  const handleSavePost = async () => {
+    if (!editedContent || !selectedGroup || !scheduledDate || !scheduledTime) {
+      alert('Please fill in all required fields')
       return
     }
 
+    setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) throw new Error('Not authenticated')
 
+      const group = groups.find(g => g.id === selectedGroup)
       const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`)
 
       const { error } = await supabase
         .from('scheduled_posts')
         .insert({
           user_id: user.id,
-          group_id: selectedGroupId,
-          generated_content: content,
+          group_id: selectedGroup,
+          territory_id: group?.territory_id,
+          generated_content: editedContent,
           scheduled_for: scheduledFor.toISOString(),
-          status: 'pending'
+          status: 'pending',
+          is_ai_generated: true,
+          post_type: postType
         })
 
       if (error) throw error
 
       alert('Post scheduled successfully!')
       router.push('/dashboard/posts')
-    } catch (err) {
-      console.error('Error creating post:', err)
-      alert('Failed to schedule post')
+    } catch (error) {
+      console.error('Error saving post:', error)
+      alert('Failed to save post')
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Filter groups based on available territories
-  const availableTerritoryIds = territories.map(t => t.id)
-  const filteredGroups = groups.filter(group => 
-    group.territory_id && availableTerritoryIds.includes(group.territory_id)
-  )
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
-      </div>
-    )
-  }
+  const selectedGroupData = groups.find(g => g.id === selectedGroup)
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Create New Post</h1>
-        <p className="text-gray-600 mt-1">Schedule a post for your Facebook groups</p>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="bg-linear-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <Sparkles className="w-8 h-8" />
+          Create AI-Generated Post
+        </h1>
+        <p className="mt-2 text-red-100">
+          Let AI create the perfect post for your Facebook group
+        </p>
       </div>
 
-      {/* Show warning if salesperson has no territory access */}
-      {profile?.role === 'salesperson' && territories.length === 0 && (
-        <Card className="border-yellow-300 bg-yellow-50">
-          <CardContent className="py-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-yellow-900 mb-1">
-                  No Territory Access
-                </h3>
-                <p className="text-sm text-yellow-800">
-                  You don&apos;t have access to any territories yet. Please request territory 
-                  access from your manager in the{' '}
-                  <a href="/dashboard/territories" className="underline font-medium">
-                    Territory Management
-                  </a>{' '}
-                  section to create posts.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Step 1: Select Group */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Users className="w-6 h-6 text-red-600" />
+          Step 1: Select Facebook Group
+        </h2>
+        <select
+          value={selectedGroup}
+          onChange={(e) => setSelectedGroup(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+        >
+          <option value="">Choose a group...</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name} - {group.territories?.name}
+            </option>
+          ))}
+        </select>
+        {selectedGroupData && (
+          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-600 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-red-600" />
+              <strong>Territory:</strong> {selectedGroupData.territories?.name}
+            </p>
+            {selectedGroupData.group_type && (
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>Type:</strong> {selectedGroupData.group_type}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
-      {/* Show territory info for salespeople */}
-      {profile?.role === 'salesperson' && territories.length > 0 && (
-        <Card className="border-blue-300 bg-blue-50">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-blue-600" />
-              <span className="text-sm text-blue-900">
-                <strong>Your Approved Territories:</strong>{' '}
-                {territories.map(t => t.name).join(', ')}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Step 2: Post Type */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Wand2 className="w-6 h-6 text-red-600" />
+          Step 2: Choose Post Type
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[
+            { value: 'general', label: 'General Post', desc: 'Standard promotional post' },
+            { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
+            { value: 'special_offer', label: 'Special Offer', desc: 'Promote a specific deal' },
+            { value: 'community', label: 'Community Focus', desc: 'Emphasize military service' },
+            { value: 'testimonial_style', label: 'Success Story', desc: 'Share customer experience' }
+          ].map((type) => (
+            <button
+              key={type.value}
+              onClick={() => setPostType(type.value as PostType)}
+              className={`p-4 border-2 rounded-lg text-left transition-all ${
+                postType === type.value
+                  ? 'border-red-600 bg-red-50'
+                  : 'border-gray-200 hover:border-red-300'
+              }`}
+            >
+              <p className="font-semibold text-gray-900">{type.label}</p>
+              <p className="text-sm text-gray-600 mt-1">{type.desc}</p>
+            </button>
+          ))}
+        </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Post Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Group Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Facebook Group *
-                {profile?.role === 'salesperson' && (
-                  <span className="text-xs text-gray-500 ml-2">
-                    (Only groups in your approved territories)
-                  </span>
-                )}
-              </label>
-              <select
-                value={selectedGroupId}
-                onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              >
-                <option value="">Select a group...</option>
-                {filteredGroups.map(group => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-              {filteredGroups.length === 0 && territories.length > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  No groups available in your territories. Contact your manager to add groups.
-                </p>
-              )}
-            </div>
+        {postType === 'special_offer' && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Special Offer Details (Optional)
+            </label>
+            <textarea
+              value={specialOffer}
+              onChange={(e) => setSpecialOffer(e.target.value)}
+              placeholder="e.g., 10% off military pricing, free warranty upgrade..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+              rows={2}
+            />
+          </div>
+        )}
+      </div>
 
-            {/* Scheduled Date */}
-            <div className="grid grid-cols-2 gap-4">
+      {/* Generate Button */}
+      <button
+        onClick={handleGeneratePost}
+        disabled={!selectedGroup || generating}
+        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
+      >
+        <Sparkles className="w-6 h-6" />
+        {generating ? 'Generating...' : 'Generate Post with AI'}
+      </button>
+
+      {/* Generated Content Preview/Edit */}
+      {showPreview && generatedContent && (
+        <>
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Eye className="w-6 h-6 text-red-600" />
+              Step 3: Review & Edit
+            </h2>
+            <textarea
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
+              rows={12}
+            />
+            <p className="text-sm text-gray-600 mt-2">
+              {editedContent.length} characters • Feel free to edit the generated content
+            </p>
+          </div>
+
+          {/* Step 4: Schedule */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Calendar className="w-6 h-6 text-red-600" />
+              Step 4: Schedule Post
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Scheduled Date *
+                  Date
                 </label>
                 <input
                   type="date"
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Scheduled Time *
+                  Time
                 </label>
                 <input
                   type="time"
                   value={scheduledTime}
                   onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
               </div>
             </div>
+          </div>
 
-            {/* Content */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Post Content *
-                </label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={generateContent}
-                  disabled={!selectedGroupId || generating}
-                >
-                  {generating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    'Generate with AI'
-                  )}
-                </Button>
-              </div>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write your post content or generate it with AI..."
-                rows={10}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Submit Buttons */}
-        <div className="flex gap-3">
+          {/* Save Button */}
           <button
-            type="submit"
-            disabled={territories.length === 0}
-            style={{
-              flex: 1,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              whiteSpace: 'nowrap',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              backgroundColor: '#dc2626',
-              color: '#ffffff',
-              height: '2.25rem',
-              padding: '0.5rem 1rem',
-              border: 'none',
-              cursor: territories.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: territories.length === 0 ? 0.5 : 1,
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              if (territories.length > 0) {
-                e.currentTarget.style.backgroundColor = '#b91c1c'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (territories.length > 0) {
-                e.currentTarget.style.backgroundColor = '#dc2626'
-              }
-            }}
+            onClick={handleSavePost}
+            disabled={loading || !scheduledDate || !scheduledTime}
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
           >
-            <Calendar className="w-4 h-4" />
-            Schedule Post
+            <Save className="w-6 h-6" />
+            {loading ? 'Saving...' : 'Schedule Post'}
           </button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push('/dashboard/posts')}
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+        </>
+      )}
     </div>
   )
 }

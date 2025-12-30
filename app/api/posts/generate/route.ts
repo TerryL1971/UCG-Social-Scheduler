@@ -3,141 +3,150 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY is not set')
+    const body = await request.json()
+    const { 
+      groupName, 
+      groupType, 
+      territory, 
+      groupDescription,
+      postType = 'general',
+      specialOffer 
+    } = body
+
+    // Validate required fields
+    if (!groupName || !territory) {
       return NextResponse.json(
-        { error: 'Claude API key not configured' },
-        { status: 500 }
+        { error: 'Missing required fields: groupName and territory' },
+        { status: 400 }
       )
     }
 
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
+    // Build the AI prompt based on group context
+    const prompt = buildPrompt({
+      groupName,
+      groupType,
+      territory,
+      groupDescription,
+      postType,
+      specialOffer
     })
 
-    const body = await request.json()
-    
-    const {
-      productName,
-      features,
-      callToAction,
-      tone,
-      groupName,
-      groupDescription,
-    } = body
-
-    const prompt = `You are writing a Facebook ad for Used Car Guys Stuttgart. Your posts are EXTREMELY emoji-heavy and visually engaging!
-
-VEHICLE: ${productName}
-FEATURES: ${features}
-TONE: ${tone} - but VERY enthusiastic with TONS of emojis!
-GROUP: ${groupName}
-${groupDescription ? `INFO: ${groupDescription}` : ''}
-
-EMOJI RULES - USE 50-70 EMOJIS:
-- Add emojis at END of almost every sentence 🎉
-- Use multiple emojis in a row (✨✨, 🚗🚗, 💙💙💙)
-- Emojis as visual separators
-- MORE emojis is better!
-
-FREQUENT EMOJIS: 🚗 🏎️ ✨ 🎉 😊 😃 🥳 💙 ❤️ 💚 🔥 ⚡ 🌟 💫 ⭐ 👀 👍 👏 🙌 💪 🔑 💯 ✅ 🎯 🚀 💰 💵 🤝 🛡️ 🔒 📱 💻 🎵 🎨 🪑 🌈 🎊 🔋 📞 📧 🌍 ✈️ 🇺🇸
-
-CRITICAL FORMATTING:
-- Add TWO line breaks between major sections (use \\n\\n)
-- Add ONE line break between bullet points
-- Make it readable with clear paragraph separation
-
-STRUCTURE:
-
-🚗✨ Check out this ${productName}! ✨🚗
-
-📱 Call/WhatsApp Terry: +49 151 6522 7520
-📧 Email: terry@usedcarguys.net
-💰 Payments available! 🎉
-
-[2-3 enthusiastic sentences with emojis] ✨
-
-[BLANK LINE HERE]
-
-FEATURES:
-* 🚗 [Feature] ✨
-* ⚡ [Feature] 💙
-* 🔒 [Feature] 🛡️
-[12-15 bullets - each with emojis]
-
-[BLANK LINE HERE]
-
-KEY SPECS:
-* 📏 Miles: XX,XXX ✨
-* ⚙️ Engine: [details] 🔥
-* ✅ EU Spec With Buy Back Guarantee 🎯
-
-[BLANK LINE HERE]
-
-💵 Price: $XX,XXX or payments from $XXX + 1yr warranty! 🎉✨
-
-[BLANK LINE HERE]
-
-[Write 2-3 paragraphs about the vehicle with emojis, separated by blank lines]
-
-[BLANK LINE HERE]
-
-WHY CHOOSE US: 🌟
-✅ Serving Military since 2012 🇺🇸
-✅ Buy Back Guarantee 🤝💙
-✅ 2yr warranty available 🛡️
-✅ We guide you through everything 👥✨
-✅ Top trade-in prices 💰🚗
-✅ Buy It Back When You Leave ✈️
-✅ Military Inspection Guaranteed 🔍✅
-✅ No SOFA Status needed 📋
-
-[BLANK LINE HERE]
-
-"Closest Thing to Leasing Overseas" 🌍✨
-
-${callToAction} 🎉
-
-[BLANK LINE HERE]
-
-📞 Contact Terry:
-📱 +49 151 6522 7520
-📧 terry@usedcarguys.net
-
-Visit us at Robert-Bosch-Straße 6, 71101 Schönaich (right near Panzer Kaserne!) 🚗
-
-Come see us today! 🚗✨🎉
-
-REQUIREMENTS:
-- 600-900 words
-- 50-70+ emojis minimum
-- Add \\n\\n between paragraphs for readability
-- VERY enthusiastic! 🎉✨🚀`
-
-    console.log('Calling Claude API...')
-
+    // Generate post using Claude
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.7,
+      max_tokens: 1024,
       messages: [
         {
           role: 'user',
-          content: prompt,
-        },
-      ],
+          content: prompt
+        }
+      ]
     })
 
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
-    
-    console.log('Claude generated:', content.length, 'characters')
+    // Extract the generated text
+    const generatedContent = message.content[0].type === 'text' 
+      ? message.content[0].text 
+      : ''
 
-    return NextResponse.json({ content })
+    return NextResponse.json({
+      success: true,
+      content: generatedContent,
+      metadata: {
+        groupName,
+        territory,
+        groupType,
+        model: 'claude-sonnet-4',
+        timestamp: new Date().toISOString()
+      }
+    })
+
   } catch (error) {
-    console.error('Claude API error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    console.error('AI Generation Error:', error)
+    return NextResponse.json(
+      { 
+        error: 'Failed to generate post', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      { status: 500 }
+    )
   }
+}
+
+function buildPrompt(params: {
+  groupName: string
+  groupType?: string
+  territory: string
+  groupDescription?: string
+  postType: string
+  specialOffer?: string
+}) {
+  const { groupName, groupType, territory, groupDescription, postType, specialOffer } = params
+
+  let basePrompt = `You are writing a Facebook post for Used Car Guys (UCG), a car dealership serving US military personnel in Germany.
+
+TARGET GROUP: ${groupName}
+TERRITORY: ${territory}
+${groupType ? `GROUP TYPE: ${groupType}` : ''}
+${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
+
+BRAND GUIDELINES:
+- Professional yet friendly tone
+- Focus on military community service
+- Emphasize quality, reliability, and trust
+- Mention proximity to military bases when relevant
+- Keep it conversational and authentic
+- Use emojis sparingly but effectively
+
+POST REQUIREMENTS:
+- Length: 150-250 words
+- Include a clear call-to-action
+- Mention UCG by name
+- Make it feel personal to this specific group
+- Address local military community needs
+- Sound natural, not like an advertisement`
+
+  // Customize based on post type
+  if (postType === 'vehicle_spotlight') {
+    basePrompt += `\n\nPOST TYPE: Vehicle Spotlight
+Highlight a specific vehicle type that would appeal to military families (SUVs, reliable sedans, family vehicles).`
+  } else if (postType === 'special_offer') {
+    basePrompt += `\n\nPOST TYPE: Special Offer
+${specialOffer ? `OFFER DETAILS: ${specialOffer}` : 'Mention special military pricing or current promotions.'}`
+  } else if (postType === 'community') {
+    basePrompt += `\n\nPOST TYPE: Community Focus
+Emphasize UCG's commitment to serving the military community and supporting local military families.`
+  } else if (postType === 'testimonial_style') {
+    basePrompt += `\n\nPOST TYPE: Testimonial Style
+Write as if sharing a success story about helping a military family find their perfect vehicle.`
+  }
+
+  // Territory-specific customization
+  if (territory.toLowerCase().includes('stuttgart')) {
+    basePrompt += `\n\nLOCAL CONTEXT: Stuttgart area - mention proximity to Patch Barracks, Panzer, or Kelley Barracks. This is a large military community with families who need reliable transportation.`
+  } else if (territory.toLowerCase().includes('ramstein') || territory.toLowerCase().includes('kmc')) {
+    basePrompt += `\n\nLOCAL CONTEXT: Kaiserslautern Military Community (KMC) - mention Ramstein Air Base, the largest US military community outside the USA. Many airmen and families need dependable vehicles.`
+  } else if (territory.toLowerCase().includes('wiesbaden')) {
+    basePrompt += `\n\nLOCAL CONTEXT: Wiesbaden area - home to USAREUR-AF headquarters. Professional military families value quality and reliability.`
+  } else if (territory.toLowerCase().includes('grafenwoehr') || territory.toLowerCase().includes('vilseck')) {
+    basePrompt += `\n\nLOCAL CONTEXT: Grafenwoehr/Vilseck area - serving soldiers and their families at one of the largest training areas in Europe.`
+  }
+
+  basePrompt += `\n\nGenerate the Facebook post now. Make it compelling, authentic, and perfect for ${groupName}.`
+
+  return basePrompt
+}
+
+// GET method for testing
+export async function GET() {
+  return NextResponse.json({
+    status: 'AI Post Generation API is ready',
+    model: 'claude-sonnet-4',
+    endpoint: '/api/posts/generate'
+  })
 }
