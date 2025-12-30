@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye } from 'lucide-react'
@@ -37,6 +37,9 @@ export default function CreatePostPage() {
   const [editedContent, setEditedContent] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
+  
+  // Refs for form inputs
+  const timeInputRef = useRef<HTMLInputElement>(null)
   
   // Preview mode
   const [showPreview, setShowPreview] = useState(false)
@@ -136,8 +139,20 @@ export default function CreatePostPage() {
   }
 
   const handleSavePost = async () => {
-    if (!editedContent || !selectedGroup || !scheduledDate || !scheduledTime) {
-      alert('Please fill in all required fields')
+    // Get time from ref if state is empty
+    const finalTime = scheduledTime || timeInputRef.current?.value || ''
+    
+    console.log('Attempting to save with:', {
+      editedContent: !!editedContent,
+      selectedGroup: !!selectedGroup,
+      scheduledDate,
+      scheduledTime,
+      finalTime,
+      timeRefValue: timeInputRef.current?.value
+    })
+    
+    if (!editedContent || !selectedGroup || !scheduledDate || !finalTime) {
+      alert('Please fill in all required fields (including time)')
       return
     }
 
@@ -151,7 +166,7 @@ export default function CreatePostPage() {
       }
 
       const group = groups.find(g => g.id === selectedGroup)
-      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`)
+      const scheduledFor = new Date(`${scheduledDate}T${finalTime}`)
 
       console.log('Saving post:', {
         user_id: user.id,
@@ -351,11 +366,19 @@ export default function CreatePostPage() {
                   Time * (24-hour format: HH:MM)
                 </label>
                 <input
-                  type="time"
-                  value={scheduledTime}
-                  onChange={(e) => {
-                    const newTime = e.target.value
-                    console.log('Time input changed:', newTime)
+                  ref={timeInputRef}
+                  type="text"
+                  defaultValue=""
+                  onInput={(e) => {
+                    const target = e.target as HTMLInputElement
+                    const newTime = target.value
+                    console.log('Time input event:', newTime)
+                    setScheduledTime(newTime)
+                  }}
+                  onKeyUp={(e) => {
+                    const target = e.target as HTMLInputElement
+                    const newTime = target.value
+                    console.log('Time keyup:', newTime)
                     setScheduledTime(newTime)
                   }}
                   placeholder="14:30"
@@ -371,7 +394,7 @@ export default function CreatePostPage() {
           {/* Save Button */}
           <button
             onClick={handleSavePost}
-            disabled={loading || !scheduledDate || !scheduledTime || !editedContent}
+            disabled={loading}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
           >
             <Save className="w-6 h-6" />
