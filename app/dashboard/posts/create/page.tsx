@@ -20,6 +20,23 @@ type FacebookGroup = {
 
 type PostType = 'general' | 'vehicle_spotlight' | 'special_offer' | 'community' | 'testimonial_style'
 
+type VehicleData = {
+  make: string
+  model: string
+  year: string
+  price: string
+  features: string
+  condition: string
+  mileage: string
+}
+
+type TestimonialData = {
+  customerName: string
+  vehicle: string
+  experience: string
+  location: string
+}
+
 export default function CreatePostPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -33,6 +50,32 @@ export default function CreatePostPage() {
   const [selectedGroup, setSelectedGroup] = useState('')
   const [postType, setPostType] = useState<PostType>('general')
   const [specialOffer, setSpecialOffer] = useState('')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [targetAudience, setTargetAudience] = useState('')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [additionalContext, setAdditionalContext] = useState('')
+  
+  // Vehicle data
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [vehicleData, setVehicleData] = useState<VehicleData>({
+    make: '',
+    model: '',
+    year: '',
+    price: '',
+    features: '',
+    condition: 'excellent',
+    mileage: ''
+  })
+  
+  // Testimonial data
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [testimonialData, setTestimonialData] = useState<TestimonialData>({
+    customerName: '',
+    vehicle: '',
+    experience: '',
+    location: ''
+  })
+  
   const [generatedContent, setGeneratedContent] = useState('')
   const [editedContent, setEditedContent] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
@@ -101,7 +144,11 @@ export default function CreatePostPage() {
           territory: group.territories?.name || 'Unknown',
           groupDescription: group.description,
           postType,
-          specialOffer: postType === 'special_offer' ? specialOffer : undefined
+          specialOffer: postType === 'special_offer' ? specialOffer : undefined,
+          targetAudience,
+          additionalContext,
+          vehicleData: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : undefined,
+          testimonialData: postType === 'testimonial_style' ? testimonialData : undefined
         })
       })
 

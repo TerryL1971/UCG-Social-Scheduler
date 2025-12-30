@@ -16,7 +16,11 @@ export async function POST(request: NextRequest) {
       territory, 
       groupDescription,
       postType = 'general',
-      specialOffer 
+      specialOffer,
+      targetAudience,
+      additionalContext,
+      vehicleData,
+      testimonialData
     } = body
 
     // Validate required fields
@@ -34,7 +38,11 @@ export async function POST(request: NextRequest) {
       territory,
       groupDescription,
       postType,
-      specialOffer
+      specialOffer,
+      targetAudience,
+      additionalContext,
+      vehicleData,
+      testimonialData
     })
 
     // Generate post using Claude
@@ -85,8 +93,36 @@ function buildPrompt(params: {
   groupDescription?: string
   postType: string
   specialOffer?: string
+  targetAudience?: string
+  additionalContext?: string
+  vehicleData?: {
+    make: string
+    model: string
+    year: string
+    price?: string
+    features?: string
+    condition?: string
+    mileage?: string
+  }
+  testimonialData?: {
+    customerName?: string
+    vehicle: string
+    experience?: string
+    location?: string
+  }
 }) {
-  const { groupName, groupType, territory, groupDescription, postType, specialOffer } = params
+  const { 
+    groupName, 
+    groupType, 
+    territory, 
+    groupDescription, 
+    postType, 
+    specialOffer,
+    targetAudience,
+    additionalContext,
+    vehicleData,
+    testimonialData
+  } = params
 
   let basePrompt = `You are writing a Facebook post for Used Car Guys (UCG), a car dealership serving US military personnel in Germany.
 
@@ -104,26 +140,46 @@ BRAND GUIDELINES:
 - Use emojis sparingly but effectively
 
 POST REQUIREMENTS:
-- Length: 150-250 words
+- Length: 1,000-5,000 characters (aim for detailed, engaging content)
+- Use emojis strategically throughout (🚗 💪 ⭐ 🎯 etc.)
 - Include a clear call-to-action
 - Mention UCG by name
 - Make it feel personal to this specific group
 - Address local military community needs
-- Sound natural, not like an advertisement`
+- Sound natural, not like an advertisement
+- Be conversational and warm
+${targetAudience ? `- Target this specifically to: ${targetAudience}` : ''}
+${additionalContext ? `- Additional context to include: ${additionalContext}` : ''}`
 
   // Customize based on post type
-  if (postType === 'vehicle_spotlight') {
+  if (postType === 'vehicle_spotlight' && vehicleData) {
     basePrompt += `\n\nPOST TYPE: Vehicle Spotlight
-Highlight a specific vehicle type that would appeal to military families (SUVs, reliable sedans, family vehicles).`
+VEHICLE DETAILS:
+- Make/Model: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model}
+${vehicleData.price ? `- Price: ${vehicleData.price}` : ''}
+${vehicleData.mileage ? `- Mileage: ${vehicleData.mileage}` : ''}
+- Condition: ${vehicleData.condition}
+${vehicleData.features ? `- Key Features: ${vehicleData.features}` : ''}
+
+Highlight this specific vehicle and why it's perfect for military families in this area.`
   } else if (postType === 'special_offer') {
     basePrompt += `\n\nPOST TYPE: Special Offer
-${specialOffer ? `OFFER DETAILS: ${specialOffer}` : 'Mention special military pricing or current promotions.'}`
+${specialOffer ? `OFFER DETAILS: ${specialOffer}` : 'Mention special military pricing or current promotions.'}
+${vehicleData && vehicleData.make ? `\nFEATURED VEHICLE: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model}
+${vehicleData.price ? `Price: ${vehicleData.price}` : ''}
+${vehicleData.features ? `Features: ${vehicleData.features}` : ''}` : ''}`
   } else if (postType === 'community') {
     basePrompt += `\n\nPOST TYPE: Community Focus
 Emphasize UCG's commitment to serving the military community and supporting local military families.`
-  } else if (postType === 'testimonial_style') {
-    basePrompt += `\n\nPOST TYPE: Testimonial Style
-Write as if sharing a success story about helping a military family find their perfect vehicle.`
+  } else if (postType === 'testimonial_style' && testimonialData) {
+    basePrompt += `\n\nPOST TYPE: Customer Success Story
+CUSTOMER DETAILS:
+- Customer: ${testimonialData.customerName || 'A military family'}
+- Vehicle: ${testimonialData.vehicle}
+${testimonialData.location ? `- Location: ${testimonialData.location}` : ''}
+${testimonialData.experience ? `- Their Story: ${testimonialData.experience}` : ''}
+
+Write this as if sharing a real success story about helping this customer find their perfect vehicle.`
   }
 
   // Territory-specific customization
