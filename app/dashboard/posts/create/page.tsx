@@ -41,9 +41,19 @@ export default function CreatePostPage() {
   // Preview mode
   const [showPreview, setShowPreview] = useState(false)
 
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('State updated:', {
+      scheduledDate,
+      scheduledTime,
+      editedContent: editedContent ? `${editedContent.substring(0, 50)}...` : 'empty',
+      canSchedule: !!(scheduledDate && scheduledTime && editedContent)
+    })
+  }, [scheduledDate, scheduledTime, editedContent])
+
   useEffect(() => {
     loadGroups()
-  })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadGroups = async () => {
     try {
@@ -322,24 +332,32 @@ export default function CreatePostPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date
+                  Date *
                 </label>
                 <input
                   type="date"
                   value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
+                  onChange={(e) => {
+                    console.log('Date changed:', e.target.value)
+                    setScheduledDate(e.target.value)
+                  }}
                   min={new Date().toISOString().split('T')[0]}
+                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Time
+                  Time *
                 </label>
                 <input
                   type="time"
                   value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
+                  onChange={(e) => {
+                    console.log('Time changed:', e.target.value)
+                    setScheduledTime(e.target.value)
+                  }}
+                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
               </div>
