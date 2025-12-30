@@ -349,12 +349,17 @@ export default function CreatePostPage() {
           {/* Save Button */}
           <button
             onClick={handleSavePost}
-            disabled={loading || !scheduledDate || !scheduledTime}
+            disabled={loading || !scheduledDate || !scheduledTime || !editedContent}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
           >
             <Save className="w-6 h-6" />
             {loading ? 'Saving...' : 'Schedule Post'}
           </button>
+          
+          {/* Debug info - remove after testing */}
+          <div className="text-xs text-gray-500 text-center">
+            Date: {scheduledDate || 'Not set'} | Time: {scheduledTime || 'Not set'} | Content: {editedContent ? 'Yes' : 'No'}
+          </div>
         </div>
       )}
     </div>
