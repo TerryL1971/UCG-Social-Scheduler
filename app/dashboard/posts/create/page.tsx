@@ -354,8 +354,16 @@ export default function CreatePostPage() {
                   type="time"
                   value={scheduledTime}
                   onChange={(e) => {
-                    console.log('Time changed:', e.target.value)
-                    setScheduledTime(e.target.value)
+                    const newTime = e.target.value
+                    console.log('Time changed:', newTime)
+                    setScheduledTime(newTime)
+                  }}
+                  onBlur={(e) => {
+                    const newTime = e.target.value
+                    if (newTime && newTime !== scheduledTime) {
+                      console.log('Time updated on blur:', newTime)
+                      setScheduledTime(newTime)
+                    }
                   }}
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
