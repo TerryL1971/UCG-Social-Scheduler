@@ -351,7 +351,7 @@ export default function CreatePostPage() {
                   Time * (24-hour format: HH:MM)
                 </label>
                 <input
-                  type="text"
+                  type="time"
                   value={scheduledTime}
                   onChange={(e) => {
                     const newTime = e.target.value
