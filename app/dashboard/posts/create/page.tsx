@@ -50,13 +50,13 @@ export default function CreatePostPage() {
   const [selectedGroup, setSelectedGroup] = useState('')
   const [postType, setPostType] = useState<PostType>('general')
   const [specialOffer, setSpecialOffer] = useState('')
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const [targetAudience, setTargetAudience] = useState('')
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const [additionalContext, setAdditionalContext] = useState('')
   
   // Vehicle data
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const [vehicleData, setVehicleData] = useState<VehicleData>({
     make: '',
     model: '',
@@ -68,7 +68,7 @@ export default function CreatePostPage() {
   })
   
   // Testimonial data
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const [testimonialData, setTestimonialData] = useState<TestimonialData>({
     customerName: '',
     vehicle: '',
@@ -234,7 +234,7 @@ export default function CreatePostPage() {
           status: 'pending',
           is_ai_generated: true,
           post_type: postType,
-          paid_by: 'none' // Will be updated when payment system is added
+          paid_by: 'none'
         })
         .select()
 
@@ -261,7 +261,7 @@ export default function CreatePostPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+      <div className="bg-linear-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <Sparkles className="w-8 h-8" />
           Create AI-Generated Post
@@ -295,27 +295,19 @@ export default function CreatePostPage() {
               <MapPin className="w-4 h-4 text-red-600" />
               <strong>Territory:</strong> {selectedGroupData.territories?.name}
             </p>
-            {selectedGroupData.group_type && (
-              <p className="text-sm text-gray-600 mt-1">
-                <strong>Type:</strong> {selectedGroupData.group_type}
-              </p>
-            )}
           </div>
         )}
       </div>
 
-      {/* Step 2: Post Type */}
+      {/* Step 2: Post Type & Details */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Wand2 className="w-6 h-6 text-red-600" />
           Step 2: Choose Post Type & Enter Details
         </h2>
         
-        {/* DEBUG INFO */}
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded">
-          <p className="text-sm font-mono">Selected Type: {postType}</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Post Type Selection */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
           {[
             { value: 'general', label: 'General Post', desc: 'Standard promotional post' },
             { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
@@ -338,20 +330,129 @@ export default function CreatePostPage() {
           ))}
         </div>
 
+        {/* TYPE-SPECIFIC INPUTS START HERE */}
+        
+        {/* Special Offer Details */}
         {postType === 'special_offer' && (
-          <div className="mt-4">
+          <div className="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Special Offer Details (Optional)
+              Special Offer Details *
             </label>
             <textarea
               value={specialOffer}
               onChange={(e) => setSpecialOffer(e.target.value)}
-              placeholder="e.g., 10% off military pricing, free warranty upgrade..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+              placeholder="e.g., 10% off military pricing, free warranty upgrade, $500 trade-in bonus..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               rows={2}
             />
           </div>
         )}
+
+        {/* Vehicle Information */}
+        {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
+          <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
+            <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                value={vehicleData.make}
+                onChange={(e) => setVehicleData({...vehicleData, make: e.target.value})}
+                placeholder="Make (e.g., Toyota)"
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+              <input
+                type="text"
+                value={vehicleData.model}
+                onChange={(e) => setVehicleData({...vehicleData, model: e.target.value})}
+                placeholder="Model (e.g., Camry)"
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+              <input
+                type="text"
+                value={vehicleData.year}
+                onChange={(e) => setVehicleData({...vehicleData, year: e.target.value})}
+                placeholder="Year (e.g., 2020)"
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+              <input
+                type="text"
+                value={vehicleData.price}
+                onChange={(e) => setVehicleData({...vehicleData, price: e.target.value})}
+                placeholder="Price (optional)"
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+            </div>
+            <textarea
+              value={vehicleData.features}
+              onChange={(e) => setVehicleData({...vehicleData, features: e.target.value})}
+              placeholder="Key features (e.g., Navigation, heated seats, AWD...)"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600 mt-4"
+              rows={2}
+            />
+          </div>
+        )}
+
+        {/* Testimonial Information */}
+        {postType === 'testimonial_style' && (
+          <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
+            <h3 className="font-semibold text-gray-900 mb-4">⭐ Customer Story Details</h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={testimonialData.customerName}
+                onChange={(e) => setTestimonialData({...testimonialData, customerName: e.target.value})}
+                placeholder="Customer name (or 'a military family')"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+              <input
+                type="text"
+                value={testimonialData.vehicle}
+                onChange={(e) => setTestimonialData({...testimonialData, vehicle: e.target.value})}
+                placeholder="Vehicle purchased *"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+              <textarea
+                value={testimonialData.experience}
+                onChange={(e) => setTestimonialData({...testimonialData, experience: e.target.value})}
+                placeholder="Their experience/need..."
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-600"
+                rows={3}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* GENERAL CONTEXT - ALWAYS VISIBLE FOR ALL TYPES */}
+        <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-400">
+          <h3 className="font-semibold text-gray-900 text-lg mb-4">📝 Additional Details (Optional but Recommended)</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Target Audience
+              </label>
+              <input
+                type="text"
+                value={targetAudience}
+                onChange={(e) => setTargetAudience(e.target.value)}
+                placeholder="e.g., young families, new arrivals, first-time buyers"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Additional Context
+              </label>
+              <textarea
+                value={additionalContext}
+                onChange={(e) => setAdditionalContext(e.target.value)}
+                placeholder="Any other details: promotions, urgency, special circumstances..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 mt-1">💡 More context helps AI create better posts!</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Generate Button */}
@@ -449,7 +550,7 @@ export default function CreatePostPage() {
             {loading ? 'Saving...' : 'Schedule Post'}
           </button>
           
-          {/* Debug info - remove after testing */}
+          {/* Debug info */}
           <div className="text-xs text-gray-500 text-center">
             Date: {scheduledDate || 'Not set'} | Time: {scheduledTime || 'Not set'} | Content: {editedContent ? 'Yes' : 'No'}
           </div>
