@@ -261,7 +261,7 @@ export default function CreatePostPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="bg-linear-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <Sparkles className="w-8 h-8" />
           Create AI-Generated Post
