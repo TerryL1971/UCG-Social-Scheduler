@@ -310,6 +310,11 @@ export default function CreatePostPage() {
           <Wand2 className="w-6 h-6 text-red-600" />
           Step 2: Choose Post Type & Enter Details
         </h2>
+        
+        {/* DEBUG INFO */}
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded">
+          <p className="text-sm font-mono">Selected Type: {postType}</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             { value: 'general', label: 'General Post', desc: 'Standard promotional post' },
