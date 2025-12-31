@@ -261,7 +261,7 @@ export default function CreatePostPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+      <div className="bg-linear-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <Sparkles className="w-8 h-8" />
           Create AI-Generated Post
@@ -308,7 +308,7 @@ export default function CreatePostPage() {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Wand2 className="w-6 h-6 text-red-600" />
-          Step 2: Choose Post Type
+          Step 2: Choose Post Type & Enter Details
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
