@@ -45,7 +45,6 @@ export default function CreatePostPage() {
   const [generating, setGenerating] = useState(false)
   const [groups, setGroups] = useState<FacebookGroup[]>([])
   const [error, setError] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [userProfile, setUserProfile] = useState<{
     full_name: string
     email: string
@@ -56,7 +55,6 @@ export default function CreatePostPage() {
   const [selectedGroup, setSelectedGroup] = useState('')
   const [postType, setPostType] = useState<PostType>('brand_awareness')
   const [specialOffer, setSpecialOffer] = useState('')
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [targetAudience, setTargetAudience] = useState('')
   const [additionalContext, setAdditionalContext] = useState('')
@@ -163,7 +161,8 @@ export default function CreatePostPage() {
           targetAudience,
           additionalContext,
           vehicleData: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : undefined,
-          testimonialData: postType === 'testimonial_style' ? testimonialData : undefined
+          testimonialData: postType === 'testimonial_style' ? testimonialData : undefined,
+          userProfile: userProfile
         })
       })
 
@@ -259,7 +258,27 @@ export default function CreatePostPage() {
       }
 
       console.log('Post saved successfully:', data)
-      alert('Post scheduled successfully! ✅')
+      
+      // Save as template if checkbox is checked
+      if (saveAsTemplate) {
+        const { error: templateError } = await supabase
+          .from('templates')
+          .insert({
+            user_id: user.id,
+            name: `${postType.replace('_', ' ')} - ${new Date().toLocaleDateString()}`,
+            content: editedContent,
+            post_type: postType,
+            territory_id: group?.territory_id
+          })
+        
+        if (templateError) {
+          console.warn('Could not save template:', templateError)
+        } else {
+          console.log('Template saved successfully')
+        }
+      }
+      
+      alert('Post scheduled successfully! ✅' + (saveAsTemplate ? ' Template saved!' : ''))
       router.push('/dashboard/posts')
     } catch (error) {
       console.error('Error saving post:', error)
@@ -321,7 +340,7 @@ export default function CreatePostPage() {
           Step 2: Choose Post Type & Enter Details
         </h2>
         
-        {        /* Post Type Selection */}
+        {/* Post Type Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
           {[
             { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
@@ -501,9 +520,20 @@ export default function CreatePostPage() {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
               rows={12}
             />
-            <p className="text-sm text-gray-600 mt-2">
-              {editedContent.length} characters • Feel free to edit the generated content
-            </p>
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-sm text-gray-600">
+                {editedContent.length} characters • Feel free to edit the generated content
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveAsTemplate}
+                  onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                  className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Save as Template</span>
+              </label>
+            </div>
           </div>
 
           {/* Step 4: Schedule */}
