@@ -18,7 +18,7 @@ type FacebookGroup = {
   }
 }
 
-type PostType = 'general' | 'vehicle_spotlight' | 'special_offer' | 'community' | 'testimonial_style'
+type PostType = 'brand_awareness' | 'vehicle_spotlight' | 'special_offer' | 'community' | 'testimonial_style'
 
 type VehicleData = {
   make: string
@@ -45,18 +45,23 @@ export default function CreatePostPage() {
   const [generating, setGenerating] = useState(false)
   const [groups, setGroups] = useState<FacebookGroup[]>([])
   const [error, setError] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [userProfile, setUserProfile] = useState<{
+    full_name: string
+    email: string
+    whatsapp?: string
+  } | null>(null)
   
   // Form state
   const [selectedGroup, setSelectedGroup] = useState('')
-  const [postType, setPostType] = useState<PostType>('general')
+  const [postType, setPostType] = useState<PostType>('brand_awareness')
   const [specialOffer, setSpecialOffer] = useState('')
-   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [targetAudience, setTargetAudience] = useState('')
-   
   const [additionalContext, setAdditionalContext] = useState('')
   
   // Vehicle data
-   
   const [vehicleData, setVehicleData] = useState<VehicleData>({
     make: '',
     model: '',
@@ -68,7 +73,6 @@ export default function CreatePostPage() {
   })
   
   // Testimonial data
-   
   const [testimonialData, setTestimonialData] = useState<TestimonialData>({
     customerName: '',
     vehicle: '',
@@ -105,6 +109,17 @@ export default function CreatePostPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      // Load user profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email, whatsapp')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        setUserProfile(profile)
+      }
 
       const { data, error } = await supabase
         .from('facebook_groups')
@@ -306,10 +321,10 @@ export default function CreatePostPage() {
           Step 2: Choose Post Type & Enter Details
         </h2>
         
-        {/* Post Type Selection */}
+        {        /* Post Type Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
           {[
-            { value: 'general', label: 'General Post', desc: 'Standard promotional post' },
+            { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
             { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
             { value: 'special_offer', label: 'Special Offer', desc: 'Promote a specific deal' },
             { value: 'community', label: 'Community Focus', desc: 'Emphasize military service' },
