@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye } from 'lucide-react'
@@ -37,6 +37,12 @@ type TestimonialData = {
   location: string
 }
 
+type UserProfile = {
+  full_name: string
+  email: string
+  whatsapp?: string
+}
+
 export default function CreatePostPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -45,11 +51,7 @@ export default function CreatePostPage() {
   const [generating, setGenerating] = useState(false)
   const [groups, setGroups] = useState<FacebookGroup[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [userProfile, setUserProfile] = useState<{
-    full_name: string
-    email: string
-    whatsapp?: string
-  } | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   
   // Form state
   const [selectedGroup, setSelectedGroup] = useState('')
@@ -83,21 +85,8 @@ export default function CreatePostPage() {
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
   
-  // Refs for form inputs
-  const timeInputRef = useRef<HTMLInputElement>(null)
-  
   // Preview mode
   const [showPreview, setShowPreview] = useState(false)
-
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log('State updated:', {
-      scheduledDate,
-      scheduledTime,
-      editedContent: editedContent ? `${editedContent.substring(0, 50)}...` : 'empty',
-      canSchedule: !!(scheduledDate && scheduledTime && editedContent)
-    })
-  }, [scheduledDate, scheduledTime, editedContent])
 
   useEffect(() => {
     loadGroups()
@@ -119,16 +108,16 @@ export default function CreatePostPage() {
         setUserProfile(profile)
       }
 
-      const { data, error } = await supabase
+      const { data, error: groupsError } = await supabase
         .from('facebook_groups')
         .select('*, territories(name)')
         .eq('user_id', user.id)
         .eq('is_active', true)
 
-      if (error) throw error
+      if (groupsError) throw groupsError
       setGroups(data || [])
-    } catch (error) {
-      console.error('Error loading groups:', error)
+    } catch (err) {
+      console.error('Error loading groups:', err)
     }
   }
 
@@ -191,9 +180,9 @@ export default function CreatePostPage() {
         })
       }, 100)
       
-    } catch (error) {
-      console.error('Generation error:', error)
-      const errorMsg = error instanceof Error ? error.message : 'Failed to generate post'
+    } catch (err) {
+      console.error('Generation error:', err)
+      const errorMsg = err instanceof Error ? err.message : 'Failed to generate post'
       setError(errorMsg)
       alert(errorMsg)
     } finally {
@@ -202,20 +191,25 @@ export default function CreatePostPage() {
   }
 
   const handleSavePost = async () => {
-    // Get time from ref if state is empty
-    const finalTime = scheduledTime || timeInputRef.current?.value || ''
+    // Validate time format
+    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
     
     console.log('Attempting to save with:', {
       editedContent: !!editedContent,
       selectedGroup: !!selectedGroup,
       scheduledDate,
       scheduledTime,
-      finalTime,
-      timeRefValue: timeInputRef.current?.value
+      timeValid: timeRegex.test(scheduledTime)
     })
     
-    if (!editedContent || !selectedGroup || !scheduledDate || !finalTime) {
+    if (!editedContent || !selectedGroup || !scheduledDate || !scheduledTime) {
       alert('Please fill in all required fields (including time)')
+      return
+    }
+    
+    // Validate time format
+    if (!timeRegex.test(scheduledTime)) {
+      alert('Invalid time format. Please use HH:MM in 24-hour format (e.g., 14:30, 09:00, 23:45)')
       return
     }
 
@@ -229,7 +223,7 @@ export default function CreatePostPage() {
       }
 
       const group = groups.find(g => g.id === selectedGroup)
-      const scheduledFor = new Date(`${scheduledDate}T${finalTime}`)
+      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00`)
 
       console.log('Saving post:', {
         user_id: user.id,
@@ -239,7 +233,7 @@ export default function CreatePostPage() {
         content_length: editedContent.length
       })
 
-      const { data, error } = await supabase
+      const { data: postData, error: saveError } = await supabase
         .from('scheduled_posts')
         .insert({
           user_id: user.id,
@@ -254,12 +248,12 @@ export default function CreatePostPage() {
         })
         .select()
 
-      if (error) {
-        console.error('Supabase error:', error)
-        throw error
+      if (saveError) {
+        console.error('Supabase error:', saveError)
+        throw saveError
       }
 
-      console.log('Post saved successfully:', data)
+      console.log('Post saved successfully:', postData)
       
       // Save as template if checkbox is checked
       if (saveAsTemplate) {
@@ -282,9 +276,9 @@ export default function CreatePostPage() {
       
       alert('Post scheduled successfully! ✅' + (saveAsTemplate ? ' Template saved!' : ''))
       router.push('/dashboard/posts')
-    } catch (error) {
-      console.error('Error saving post:', error)
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save post'
+    } catch (err) {
+      console.error('Error saving post:', err)
+      const errorMsg = err instanceof Error ? err.message : 'Failed to save post'
       setError(errorMsg)
       alert('Error: ' + errorMsg)
     } finally {
@@ -366,8 +360,6 @@ export default function CreatePostPage() {
           ))}
         </div>
 
-        {/* TYPE-SPECIFIC INPUTS START HERE */}
-        
         {/* Special Offer Details */}
         {postType === 'special_offer' && (
           <div className="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
@@ -458,7 +450,7 @@ export default function CreatePostPage() {
           </div>
         )}
 
-        {/* GENERAL CONTEXT - ALWAYS VISIBLE FOR ALL TYPES */}
+        {/* Additional Context */}
         <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-400">
           <h3 className="font-semibold text-gray-900 text-lg mb-4">📝 Additional Details (Optional but Recommended)</h3>
           <div className="space-y-4">
@@ -491,7 +483,7 @@ export default function CreatePostPage() {
         </div>
       </div>
 
-      {/* Generate Button */}
+      {/* Error Display */}
       {error && (
         <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
           <p className="text-red-800 font-semibold">Error generating post:</p>
@@ -499,6 +491,7 @@ export default function CreatePostPage() {
         </div>
       )}
 
+      {/* Generate Button */}
       <button
         onClick={handleGeneratePost}
         disabled={!selectedGroup || generating}
@@ -563,26 +556,55 @@ export default function CreatePostPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Time *
+                  Time * (HH:MM in 24-hour format)
                 </label>
                 <input
-                  ref={timeInputRef}
-                  type="time"
-                  defaultValue=""
-                  onInput={(e) => {
-                    const target = e.target as HTMLInputElement
-                    const newTime = target.value
-                    console.log('Time input event:', newTime)
-                    setScheduledTime(newTime)
-                  }}
+                  type="text"
+                  value={scheduledTime}
                   onChange={(e) => {
-                    const newTime = e.target.value
-                    console.log('Time onChange:', newTime)
-                    setScheduledTime(newTime)
+                    let value = e.target.value
+                    console.log('Time text input changed:', value)
+                    
+                    // Remove any non-digit or colon characters
+                    value = value.replace(/[^\d:]/g, '')
+                    
+                    // Auto-format: if user types 4 digits without colon, add it
+                    if (value.length === 4 && !value.includes(':')) {
+                      value = value.substring(0, 2) + ':' + value.substring(2)
+                    }
+                    
+                    // Limit to HH:MM format (5 characters max)
+                    if (value.length <= 5) {
+                      setScheduledTime(value)
+                    }
                   }}
+                  onBlur={(e) => {
+                    const value = e.target.value
+                    // Validate format on blur
+                    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
+                    if (value && !timeRegex.test(value)) {
+                      alert('Invalid time format. Please use HH:MM (e.g., 14:30, 09:00)')
+                      setScheduledTime('')
+                    }
+                  }}
+                  placeholder="14:30"
+                  maxLength={5}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-mono text-lg"
                 />
+                {scheduledTime && /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(scheduledTime) && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ Valid time: {scheduledTime}
+                  </p>
+                )}
+                {scheduledTime && !/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(scheduledTime) && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ Invalid format - must be HH:MM (e.g., 14:30)
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Examples: 09:00, 14:30, 18:45, 23:59
+                </p>
               </div>
             </div>
           </div>
@@ -596,11 +618,6 @@ export default function CreatePostPage() {
             <Save className="w-6 h-6" />
             {loading ? 'Saving...' : 'Schedule Post'}
           </button>
-          
-          {/* Debug info */}
-          <div className="text-xs text-gray-500 text-center">
-            Date: {scheduledDate || 'Not set'} | Time: {scheduledTime || 'Not set'} | Content: {editedContent ? 'Yes' : 'No'}
-          </div>
         </div>
       )}
     </div>

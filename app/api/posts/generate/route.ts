@@ -149,7 +149,6 @@ function buildPrompt(params: {
     groupName, 
     groupType, 
     territory, 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     groupDescription, 
     postType, 
     specialOffer,
@@ -271,7 +270,7 @@ Examples:
 
 9️⃣ MEET THE TEAM:
 ${isStuttgartBrandAwareness 
-  ? `"Come on in and meet our "Good Guys"!, ${terryLombardi.name} and ${nickMorley.name} and of course… Karl the Cat. 🐱💙"`
+  ? `"Come on in and meet our "Good Guys"! ${terryLombardi.name} and ${nickMorley.name} are here to help you find your perfect vehicle. 🚗✨"`
   : `"Come on in and meet ${salesPerson} and the team! We're here to help you find your perfect vehicle. 🚗✨"`
 }
 
@@ -279,8 +278,7 @@ ${isStuttgartBrandAwareness
 "📞 Contact:"
 ${isStuttgartBrandAwareness 
   ? `${terryLombardi.name}'s WhatsApp at ${terryLombardi.whatsapp}
-${nickMorley.name}'s WhatsApp ${nickMorley.whatsapp}
-Karl the Cat: Only accepts in person visits and head scratches if you feel so inclined. 🐱😊`
+${nickMorley.name}'s WhatsApp ${nickMorley.whatsapp}`
   : `${salesPerson}'s WhatsApp: ${salesWhatsApp}
 ${salesEmail ? `📧 Email: ${salesEmail}` : ''}`
 }
@@ -308,6 +306,7 @@ ${additionalContext ? `\n📝 ADDITIONAL CONTEXT: ${additionalContext}` : ''}
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
+${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
 
 VEHICLE DETAILS:
 - Make/Model: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model}
@@ -391,6 +390,7 @@ ${salesEmail ? `"📧 ${salesEmail}"` : ''}
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
+${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
 OFFER: ${specialOffer || 'Special military pricing and promotions available'}
 ${vehicleData?.make ? `FEATURED VEHICLE: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : ''}
 
@@ -437,6 +437,7 @@ ${salesEmail ? `"📧 ${salesEmail}"` : ''}
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
+${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
 
 📏 LENGTH: 800-1,200 words
 
@@ -484,6 +485,7 @@ ${salesEmail ? `"📧 ${salesEmail}"` : ''}
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
+${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
 
 CUSTOMER STORY:
 - Customer: ${testimonialData.customerName || 'A military family'}
