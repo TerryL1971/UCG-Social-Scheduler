@@ -20,6 +20,12 @@ const supabase = createClient(
 
 interface FacebookGroup {
   name: string
+  group_url?: string
+}
+
+interface Profile {
+  full_name: string
+  email: string
 }
 
 interface ScheduledPost {
@@ -30,23 +36,24 @@ interface ScheduledPost {
   reminder_sent: boolean | null
   user_id: string
   facebook_groups: FacebookGroup | null
+  profiles: Profile | null
 }
 
 export async function GET(request: Request) {
   try {
-    // Verify the request is from your cron service (optional but recommended)
+    // Verify the request is from your cron service
     const authHeader = request.headers.get('authorization')
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get current time and 1 hour from now
+    // Get current time and 2 hours from now
     const now = new Date()
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000)
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
 
-    console.log(`Checking for posts between ${now.toISOString()} and ${oneHourFromNow.toISOString()}`)
+    console.log(`⏰ Checking for posts between ${now.toISOString()} and ${twoHoursFromNow.toISOString()}`)
 
-    // Find posts scheduled in the next hour that haven't been reminded
+    // Find posts scheduled in the next 2 hours that haven't been reminded
     const { data: posts, error } = await supabase
       .from('scheduled_posts')
       .select(`
@@ -56,49 +63,37 @@ export async function GET(request: Request) {
         status,
         reminder_sent,
         user_id,
-        facebook_groups!inner(name)
+        facebook_groups!inner(name, group_url),
+        profiles!inner(full_name, email)
       `)
       .in('status', ['ready', 'pending'])
       .gte('scheduled_for', now.toISOString())
-      .lte('scheduled_for', oneHourFromNow.toISOString())
+      .lte('scheduled_for', twoHoursFromNow.toISOString())
       .or('reminder_sent.is.null,reminder_sent.eq.false')
 
     if (error) {
-      console.error('Database error:', error)
+      console.error('❌ Database error:', error)
       throw error
     }
 
-    console.log(`Found ${posts?.length || 0} posts needing reminders`)
+    console.log(`📧 Found ${posts?.length || 0} posts needing reminders`)
 
     if (!posts || posts.length === 0) {
       return NextResponse.json({ 
         message: 'No posts need reminders',
-        count: 0 
+        count: 0,
+        timestamp: new Date().toISOString()
       })
     }
 
-    // Get user emails
-    const userIds = [...new Set(posts.map(p => p.user_id))]
-    const { data: users } = await supabase.auth.admin.listUsers()
-    
-    const userEmails = new Map(
-      users.users
-        .filter(u => userIds.includes(u.id))
-        .map(u => [u.id, { 
-          email: u.email || '', 
-          name: (u.user_metadata?.full_name as string | undefined) || '' 
-        }])
-    )
-
     const emailPromises = posts.map(async (post) => {
-      const userInfo = userEmails.get(post.user_id)
+      const typedPost = post as unknown as ScheduledPost
       
-      if (!userInfo?.email) {
-        console.log(`No email found for user ${post.user_id}`)
+      if (!typedPost.profiles?.email) {
+        console.log(`⚠️ No email found for user ${typedPost.user_id}`)
         return null
       }
 
-      const typedPost = post as unknown as ScheduledPost
       const group = typedPost.facebook_groups
       const scheduledTime = new Date(typedPost.scheduled_for)
       const formattedTime = scheduledTime.toLocaleString('en-US', {
@@ -107,134 +102,155 @@ export async function GET(request: Request) {
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'Europe/Berlin'
       })
 
+      // Calculate time until post
+      const minutesUntil = Math.round((scheduledTime.getTime() - now.getTime()) / (60 * 1000))
+      const hoursUntil = Math.round(minutesUntil / 60)
+
+      let timeUntilText = ''
+      if (hoursUntil >= 2) {
+        timeUntilText = `in ${hoursUntil} hours`
+      } else if (minutesUntil >= 60) {
+        timeUntilText = 'in about 1 hour'
+      } else if (minutesUntil > 30) {
+        timeUntilText = 'in 30-60 minutes'
+      } else {
+        timeUntilText = `in about ${minutesUntil} minutes`
+      }
+
       try {
-        console.log(`Sending email to ${userInfo.email} for post ${typedPost.id}`)
+        console.log(`📨 Sending email to ${typedPost.profiles.email} for post ${typedPost.id}`)
 
         await resend.emails.send({
-          from: 'UCG Post Scheduler <onboarding@resend.dev>',
-          to: userInfo.email,
-          subject: `⏰ Reminder: Post scheduled for ${group?.name || 'your group'}`,
+          from: process.env.FROM_EMAIL || 'UCG Social Scheduler <onboarding@resend.dev>',
+          to: typedPost.profiles.email,
+          subject: `⏰ Time to Post! - ${group?.name || 'your group'}`,
           html: `
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                  body { 
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                    line-height: 1.6; 
-                    color: #1f2937; 
-                    margin: 0;
-                    padding: 0;
-                    background-color: #f3f4f6;
-                  }
-                  .container { 
-                    max-width: 600px; 
-                    margin: 0 auto; 
-                    background-color: white;
-                  }
-                  .header { 
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    color: white; 
-                    padding: 40px 30px; 
-                    text-align: center; 
-                  }
-                  .header h1 {
-                    margin: 0;
-                    font-size: 28px;
-                    font-weight: 700;
-                  }
-                  .content { 
-                    padding: 40px 30px; 
-                  }
-                  .post-box { 
-                    background: #f9fafb; 
-                    border-left: 4px solid #667eea; 
-                    padding: 20px; 
-                    margin: 25px 0; 
-                    border-radius: 8px; 
-                  }
-                  .post-box p {
-                    margin: 8px 0;
-                  }
-                  .post-box strong {
-                    color: #374151;
-                    font-weight: 600;
-                  }
-                  .content-preview {
-                    background: white;
-                    padding: 15px;
-                    border-radius: 6px;
-                    margin-top: 10px;
-                    color: #6b7280;
-                    white-space: pre-wrap;
-                    font-size: 14px;
-                    border: 1px solid #e5e7eb;
-                  }
-                  .button { 
-                    display: inline-block; 
-                    padding: 14px 28px; 
-                    background: #667eea; 
-                    color: white !important; 
-                    text-decoration: none; 
-                    border-radius: 8px; 
-                    margin-top: 20px;
-                    font-weight: 600;
-                    transition: background 0.2s;
-                  }
-                  .button:hover {
-                    background: #5568d3;
-                  }
-                  .footer { 
-                    text-align: center; 
-                    color: #9ca3af; 
-                    font-size: 13px; 
-                    padding: 30px;
-                    border-top: 1px solid #e5e7eb;
-                  }
-                  .reminder-icon {
-                    font-size: 48px;
-                    margin-bottom: 10px;
-                  }
-                </style>
-              </head>
-              <body>
-                <div class="container">
-                  <div class="header">
-                    <div class="reminder-icon">⏰</div>
-                    <h1>Post Reminder</h1>
-                  </div>
-                  <div class="content">
-                    <p style="font-size: 16px; margin-bottom: 10px;">Hi ${userInfo.name || 'there'}! 👋</p>
-                    
-                    <p style="color: #6b7280;">This is a friendly reminder that you have a post scheduled soon:</p>
-                    
-                    <div class="post-box">
-                      <p><strong>📍 Facebook Group:</strong> ${group?.name || 'Unknown Group'}</p>
-                      <p><strong>⏰ Scheduled Time:</strong> ${formattedTime}</p>
-                      <p style="margin-top: 15px;"><strong>📝 Your Content:</strong></p>
-                      <div class="content-preview">${typedPost.generated_content.substring(0, 300)}${typedPost.generated_content.length > 300 ? '...' : ''}</div>
-                    </div>
-                    
-                    <p style="color: #374151; font-weight: 500;">Don&apos;t forget to post it at the scheduled time! 🎯</p>
-                    
-                    <center>
-                      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/posts" class="button">
-                        📋 View All Scheduled Posts
-                      </a>
-                    </center>
-                  </div>
-                  <div class="footer">
-                    <p>This is an automated reminder from UCG Social Scheduler</p>
-                    <p style="margin-top: 10px;">You can manage your notification preferences in your dashboard settings.</p>
-                  </div>
-                </div>
-              </body>
-            </html>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time to Post!</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 0;">
+        <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold; text-align: center;">
+                ⏰ Time to Post!
+              </h1>
+              <p style="margin: 10px 0 0 0; color: #fee2e2; font-size: 16px; text-align: center;">
+                Your scheduled post is ready
+              </p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              
+              <!-- Greeting -->
+              <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hi <strong>${typedPost.profiles.full_name}</strong>,
+              </p>
+
+              <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Your scheduled Facebook post is coming up <strong>${timeUntilText}</strong>!
+              </p>
+
+              <!-- Post Details Box -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; margin: 20px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase;">
+                      📅 Scheduled For
+                    </p>
+                    <p style="margin: 0 0 20px 0; color: #111827; font-size: 18px; font-weight: bold;">
+                      ${formattedTime}
+                    </p>
+
+                    <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase;">
+                      👥 Facebook Group
+                    </p>
+                    <p style="margin: 0; color: #111827; font-size: 16px; font-weight: 600;">
+                      ${group?.name || 'Unknown Group'}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Instructions -->
+              <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                <p style="margin: 0; color: #1e40af; font-size: 14px; font-weight: 600;">
+                  📝 How to Post:
+                </p>
+                <ol style="margin: 10px 0 0 0; padding-left: 20px; color: #1e40af; font-size: 14px;">
+                  <li style="margin-bottom: 8px;">Copy the post content below</li>
+                  <li style="margin-bottom: 8px;">Go to the Facebook group</li>
+                  <li style="margin-bottom: 8px;">Paste and publish!</li>
+                </ol>
+              </div>
+
+              <!-- Post Content -->
+              <p style="margin: 30px 0 10px 0; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase;">
+                📄 Your Post Content (Ready to Copy!)
+              </p>
+              
+              <div style="background-color: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 10px 0 20px 0;">
+                <pre style="margin: 0; color: #111827; font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">${typedPost.generated_content}</pre>
+              </div>
+
+              <!-- CTA Button -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    ${group?.group_url 
+                      ? `<a href="${group.group_url}" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                          Go to Facebook Group →
+                        </a>`
+                      : `<a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://ucg-social-scheduler.com'}/dashboard/posts" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                          View All Posts →
+                        </a>`
+                    }
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Footer Note -->
+              <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
+                <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
+                  <strong>💡 Pro Tip:</strong> Select all the text in the box above (Cmd+A or Ctrl+A), copy it (Cmd+C or Ctrl+C), then paste it directly into Facebook!
+                </p>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 40px; background-color: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0; color: #6b7280; font-size: 12px; text-align: center; line-height: 1.6;">
+                This is an automated reminder from UCG Social Scheduler<br>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://ucg-social-scheduler.com'}" style="color: #dc2626; text-decoration: none;">ucg-social-scheduler.com</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
           `
         })
 
@@ -245,7 +261,7 @@ export async function GET(request: Request) {
           .eq('id', typedPost.id)
 
         console.log(`✅ Email sent successfully for post ${typedPost.id}`)
-        return { success: true, postId: typedPost.id, email: userInfo.email }
+        return { success: true, postId: typedPost.id, email: typedPost.profiles.email }
       } catch (error) {
         console.error(`❌ Failed to send email for post ${typedPost.id}:`, error)
         return { success: false, postId: typedPost.id, error: String(error) }
