@@ -9,6 +9,18 @@ const anthropic = new Anthropic({
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate API key exists
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is not set')
+      return NextResponse.json(
+        { 
+          error: 'Configuration error', 
+          details: 'Anthropic API key is not configured. Please check your environment variables.' 
+        },
+        { status: 500 }
+      )
+    }
+
     const body = await request.json()
     const { 
       groupName, 
@@ -47,6 +59,14 @@ export async function POST(request: NextRequest) {
       userProfile
     })
 
+    console.log('Generating post with Claude:', {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      promptLength: prompt.length,
+      postType,
+      territory
+    })
+
     // Generate post using Claude
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -79,10 +99,16 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('AI Generation Error:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      raw: error
+    })
     return NextResponse.json(
       { 
         error: 'Failed to generate post', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        type: error instanceof Error ? error.constructor.name : typeof error
       },
       { status: 500 }
     )
@@ -123,6 +149,8 @@ function buildPrompt(params: {
     groupName, 
     groupType, 
     territory, 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    groupDescription, 
     postType, 
     specialOffer,
     targetAudience,

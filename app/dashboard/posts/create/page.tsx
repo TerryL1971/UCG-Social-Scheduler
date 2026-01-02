@@ -168,9 +168,11 @@ export default function CreatePostPage() {
 
       const data = await response.json()
       console.log('API Response:', data)
+      console.log('Response status:', response.status)
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate post')
+        console.error('API Error Details:', data)
+        throw new Error(data.details || data.error || 'Failed to generate post')
       }
 
       if (!data.content) {
