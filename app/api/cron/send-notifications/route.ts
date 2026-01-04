@@ -103,8 +103,7 @@ export async function GET(request: Request) {
         testimonial_data,
         special_offer,
         generated_content,
-        facebook_groups!inner(name, group_url, group_type, description, group_environment, territories(name)),
-        profiles!inner(full_name, email, whatsapp)
+        facebook_groups!inner(name, group_url, group_type, description, group_environment, territories(name))
       `)
       .eq('status', 'scheduled')
       .gte('scheduled_for', now.toISOString())
@@ -126,15 +125,62 @@ export async function GET(request: Request) {
       })
     }
 
+    // Get user profiles separately
+    const userIds = [...new Set(schedules.map(s => s.user_id))]
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, whatsapp')
+      .in('id', userIds)
+
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || [])
+
     const emailPromises = schedules.map(async (schedule) => {
-      const typedSchedule = schedule as unknown as PostSchedule
+      const profile = profileMap.get(schedule.user_id)
+      
+      if (!profile?.email) {
+        console.log(`⚠️ No email found for user ${schedule.user_id}`)
+        return null
+      }
+
+      // Extract first group from array (Supabase returns arrays for joins)
+      const rawGroup = Array.isArray(schedule.facebook_groups) 
+        ? schedule.facebook_groups[0] 
+        : schedule.facebook_groups
+
+      const typedSchedule: PostSchedule = {
+        id: schedule.id,
+        scheduled_for: schedule.scheduled_for,
+        status: schedule.status,
+        reminder_sent: schedule.reminder_sent,
+        user_id: schedule.user_id,
+        post_type: schedule.post_type,
+        target_audience: schedule.target_audience,
+        special_context: schedule.special_context,
+        vehicle_data: schedule.vehicle_data,
+        testimonial_data: schedule.testimonial_data,
+        special_offer: schedule.special_offer,
+        generated_content: schedule.generated_content,
+        facebook_groups: rawGroup ? {
+          name: rawGroup.name,
+          group_url: rawGroup.group_url,
+          group_type: rawGroup.group_type,
+          description: rawGroup.description,
+          group_environment: rawGroup.group_environment,
+          territories: Array.isArray(rawGroup.territories) && rawGroup.territories.length > 0 
+            ? { name: rawGroup.territories[0].name }
+            : undefined
+        } : null,
+        profiles: profile
+      }
+      
       
       if (!typedSchedule.profiles?.email) {
         console.log(`⚠️ No email found for user ${typedSchedule.user_id}`)
         return null
       }
 
-      const group = typedSchedule.facebook_groups
+            
+      const fbGroup = typedSchedule.facebook_groups
       const scheduledTime = new Date(typedSchedule.scheduled_for)
       const formattedTime = scheduledTime.toLocaleString('en-US', {
         weekday: 'long',
@@ -165,7 +211,7 @@ export async function GET(request: Request) {
         console.log(`🤖 Generating fresh content for schedule ${typedSchedule.id}`)
 
         // Generate fresh content NOW
-        const generatedContent = await generateFreshContent(typedSchedule, group)
+        const generatedContent = await generateFreshContent(typedSchedule, fbGroup)
 
         if (!generatedContent) {
           throw new Error('Failed to generate content')
@@ -191,8 +237,8 @@ export async function GET(request: Request) {
         await resend.emails.send({
           from: process.env.FROM_EMAIL || 'UCG Social Scheduler <onboarding@resend.dev>',
           to: typedSchedule.profiles.email,
-          subject: `⏰ Time to Post! - ${group?.name || 'your group'}`,
-          html: generateEmailHTML(typedSchedule, group, generatedContent, formattedTime, timeUntilText)
+          subject: `⏰ Time to Post! - ${fbGroup?.name || 'your group'}`,
+          html: generateEmailHTML(typedSchedule, fbGroup, generatedContent, formattedTime, timeUntilText)
         })
 
         // Mark reminder as sent
@@ -248,20 +294,20 @@ export async function GET(request: Request) {
 // Generate fresh content using AI
 async function generateFreshContent(
   schedule: PostSchedule,
-  group: FacebookGroup | null
+  groupData: FacebookGroup | null
 ): Promise<string | null> {
   try {
-    const territory = group?.territories?.name || 'Unknown'
+    const territory = groupData?.territories?.name || 'Unknown'
     const isStuttgartBrandAwareness = territory.toLowerCase().includes('stuttgart') && schedule.post_type === 'brand_awareness'
     
     // Build context-aware prompt
     let prompt = `You are writing a Facebook post for Used Car Guys (UCG), a car dealership serving US military personnel in Germany.
 
-TARGET GROUP: ${group?.name || 'Unknown Group'}
+TARGET GROUP: ${groupData?.name || 'Unknown Group'}
 TERRITORY: ${territory}
-${group?.group_type ? `GROUP TYPE: ${group.group_type}` : ''}
-${group?.description ? `GROUP CONTEXT: ${group.description}` : ''}
-${group?.group_environment ? `GROUP ENVIRONMENT: ${group.group_environment}` : ''}
+${groupData?.group_type ? `GROUP TYPE: ${groupData.group_type}` : ''}
+${groupData?.description ? `GROUP CONTEXT: ${groupData.description}` : ''}
+${groupData?.group_environment ? `GROUP ENVIRONMENT: ${groupData.group_environment}` : ''}
 
 CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
@@ -326,7 +372,7 @@ ${td.experience ? `- Their experience: ${td.experience}` : ''}
       prompt += `\nLOCAL CONTEXT: KMC - mention Ramstein Air Base, largest US military community outside USA.`
     }
 
-    prompt += `\n\nGenerate the Facebook post now. Make it compelling, authentic, and perfect for ${group?.name}.`
+    prompt += `\n\nGenerate the Facebook post now. Make it compelling, authentic, and perfect for ${groupData?.name}.`
 
     // Call Claude API
     const message = await anthropic.messages.create({
@@ -353,7 +399,7 @@ ${td.experience ? `- Their experience: ${td.experience}` : ''}
 // Generate email HTML
 function generateEmailHTML(
   schedule: PostSchedule,
-  group: FacebookGroup | null,
+  groupData: FacebookGroup | null,
   content: string,
   formattedTime: string,
   timeUntilText: string
@@ -412,7 +458,7 @@ function generateEmailHTML(
                       👥 Facebook Group
                     </p>
                     <p style="margin: 0; color: #111827; font-size: 16px; font-weight: 600;">
-                      ${group?.name || 'Unknown Group'}
+                      ${groupData?.name || 'Unknown Group'}
                     </p>
                   </td>
                 </tr>
@@ -453,8 +499,8 @@ function generateEmailHTML(
               <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
                 <tr>
                   <td align="center">
-                    ${group?.group_url 
-                      ? `<a href="${group.group_url}" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                    ${groupData?.group_url 
+                      ? `<a href="${groupData.group_url}" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
                           Go to Facebook Group →
                         </a>`
                       : `<a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://ucg-social-scheduler.com'}/dashboard/posts" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
