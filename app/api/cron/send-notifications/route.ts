@@ -3,12 +3,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
 
 // Create a Supabase client with service role for cron jobs
 const supabase = createClient(
@@ -27,7 +23,6 @@ interface FacebookGroup {
   group_url?: string
   group_type?: string
   description?: string
-  group_environment?: string
   territories?: {
     name: string
   }
@@ -78,6 +73,7 @@ export async function GET(request: Request) {
     // Verify the request is from your cron service
     const authHeader = request.headers.get('authorization')
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.error('❌ Unauthorized cron request')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -85,7 +81,7 @@ export async function GET(request: Request) {
     const now = new Date()
     const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
 
-    console.log(`⏰ Checking for schedules between ${now.toISOString()} and ${twoHoursFromNow.toISOString()}`)
+    console.log(`⏰ [${now.toISOString()}] Checking for schedules between ${now.toISOString()} and ${twoHoursFromNow.toISOString()}`)
 
     // Find schedules in the next 2 hours that haven't been reminded
     const { data: schedules, error } = await supabase
@@ -103,7 +99,7 @@ export async function GET(request: Request) {
         testimonial_data,
         special_offer,
         generated_content,
-        facebook_groups!inner(name, group_url, group_type, description, group_environment, territories(name))
+        facebook_groups!inner(name, group_url, group_type, description, territories(name))
       `)
       .eq('status', 'scheduled')
       .gte('scheduled_for', now.toISOString())
@@ -121,7 +117,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ 
         message: 'No schedules need reminders',
         count: 0,
-        timestamp: new Date().toISOString()
+        timestamp: now.toISOString()
       })
     }
 
@@ -165,7 +161,6 @@ export async function GET(request: Request) {
           group_url: rawGroup.group_url,
           group_type: rawGroup.group_type,
           description: rawGroup.description,
-          group_environment: rawGroup.group_environment,
           territories: Array.isArray(rawGroup.territories) && rawGroup.territories.length > 0 
             ? { name: rawGroup.territories[0].name }
             : undefined
@@ -173,13 +168,11 @@ export async function GET(request: Request) {
         profiles: profile
       }
       
-      
       if (!typedSchedule.profiles?.email) {
         console.log(`⚠️ No email found for user ${typedSchedule.user_id}`)
         return null
       }
 
-            
       const fbGroup = typedSchedule.facebook_groups
       const scheduledTime = new Date(typedSchedule.scheduled_for)
       const formattedTime = scheduledTime.toLocaleString('en-US', {
@@ -217,6 +210,8 @@ export async function GET(request: Request) {
           throw new Error('Failed to generate content')
         }
 
+        console.log(`✅ Content generated (${generatedContent.length} chars)`)
+
         // Update schedule with generated content
         const { error: updateError } = await supabase
           .from('post_schedules')
@@ -228,10 +223,11 @@ export async function GET(request: Request) {
           .eq('id', typedSchedule.id)
 
         if (updateError) {
-          console.error('Error updating schedule with content:', updateError)
+          console.error('❌ Error updating schedule with content:', updateError)
+          throw updateError
         }
 
-        console.log(`📨 Sending email to ${typedSchedule.profiles.email} for schedule ${typedSchedule.id}`)
+        console.log(`📨 Sending email to ${typedSchedule.profiles.email}`)
 
         // Send email with fresh content
         await resend.emails.send({
@@ -251,7 +247,12 @@ export async function GET(request: Request) {
           .eq('id', typedSchedule.id)
 
         console.log(`✅ Email sent successfully for schedule ${typedSchedule.id}`)
-        return { success: true, scheduleId: typedSchedule.id, email: typedSchedule.profiles.email }
+        return { 
+          success: true, 
+          scheduleId: typedSchedule.id, 
+          email: typedSchedule.profiles.email,
+          groupName: fbGroup?.name
+        }
       } catch (emailError) {
         console.error(`❌ Failed to process schedule ${typedSchedule.id}:`, emailError)
         return { 
@@ -265,6 +266,8 @@ export async function GET(request: Request) {
     const results = await Promise.all(emailPromises)
     const validResults = results.filter(r => r !== null)
     const successCount = validResults.filter(r => r.success).length
+
+    console.log(`✅ Cron job complete: ${successCount}/${validResults.length} emails sent`)
 
     return NextResponse.json({
       success: true,
@@ -291,104 +294,45 @@ export async function GET(request: Request) {
   }
 }
 
-// Generate fresh content using AI
+// Generate fresh content using Claude API
 async function generateFreshContent(
   schedule: PostSchedule,
   groupData: FacebookGroup | null
 ): Promise<string | null> {
   try {
     const territory = groupData?.territories?.name || 'Unknown'
-    const isStuttgartBrandAwareness = territory.toLowerCase().includes('stuttgart') && schedule.post_type === 'brand_awareness'
     
-    // Build context-aware prompt
-    let prompt = `You are writing a Facebook post for Used Car Guys (UCG), a car dealership serving US military personnel in Germany.
-
-TARGET GROUP: ${groupData?.name || 'Unknown Group'}
-TERRITORY: ${territory}
-${groupData?.group_type ? `GROUP TYPE: ${groupData.group_type}` : ''}
-${groupData?.description ? `GROUP CONTEXT: ${groupData.description}` : ''}
-${groupData?.group_environment ? `GROUP ENVIRONMENT: ${groupData.group_environment}` : ''}
-
-CURRENT DATE: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-
-POST TYPE: ${schedule.post_type}
-${schedule.target_audience ? `TARGET AUDIENCE: ${schedule.target_audience}` : ''}
-${schedule.special_context ? `SPECIAL CONTEXT: ${schedule.special_context}` : ''}
-
-BRAND GUIDELINES:
-- Professional yet friendly tone
-- Focus on military community service
-- Emphasize quality, reliability, and trust
-- Keep it conversational and authentic
-- Use emojis strategically (50+ for brand awareness, 30-40 for other types)
-
-POST REQUIREMENTS:
-- Length: ${schedule.post_type === 'brand_awareness' ? '1,500-3,000 characters' : '800-1,200 characters'}
-- Include a clear call-to-action
-- Make it feel personal to this specific group
-- Address local military community needs
-
-`
-
-    // Add Stuttgart Brand Awareness specific content
-    if (isStuttgartBrandAwareness) {
-      prompt += `
-🎯 SPECIAL: STUTTGART BRAND AWARENESS CAMPAIGN
-- Build trust and brand recognition
-- Personal, warm, community-focused tone
-- Mention Nick Morley (WhatsApp: +49 172 712 9046)
-- Mention Terry Lombardi (WhatsApp: +49 151 6522 7520)
-- Highlight UCG's commitment to Stuttgart military families
-`
-    }
-
-    // Add type-specific context
-    if (schedule.post_type === 'vehicle_spotlight' && schedule.vehicle_data) {
-      const vd = schedule.vehicle_data
-      prompt += `
-VEHICLE DETAILS:
-- ${vd.year} ${vd.make} ${vd.model}
-${vd.price ? `- Price: ${vd.price}` : ''}
-${vd.features ? `- Features: ${vd.features}` : ''}
-`
-    } else if (schedule.post_type === 'special_offer') {
-      prompt += `
-SPECIAL OFFER: ${schedule.special_offer || 'Military pricing and promotions available'}
-`
-    } else if (schedule.post_type === 'testimonial_style' && schedule.testimonial_data) {
-      const td = schedule.testimonial_data
-      prompt += `
-CUSTOMER STORY:
-- Customer: ${td.customerName || 'A military family'}
-- Vehicle: ${td.vehicle}
-${td.experience ? `- Their experience: ${td.experience}` : ''}
-`
-    }
-
-    // Territory-specific customization
-    if (territory.toLowerCase().includes('stuttgart')) {
-      prompt += `\nLOCAL CONTEXT: Stuttgart - mention Patch Barracks, Panzer Kaserne, or Kelley Barracks.`
-    } else if (territory.toLowerCase().includes('ramstein') || territory.toLowerCase().includes('kmc')) {
-      prompt += `\nLOCAL CONTEXT: KMC - mention Ramstein Air Base, largest US military community outside USA.`
-    }
-
-    prompt += `\n\nGenerate the Facebook post now. Make it compelling, authentic, and perfect for ${groupData?.name}.`
-
-    // Call Claude API
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: schedule.post_type === 'brand_awareness' ? 4096 : 2048,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
+    // Use the same prompt builder logic from your /api/posts/generate
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/posts/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        groupName: groupData?.name || 'Unknown Group',
+        groupType: groupData?.group_type,
+        territory: territory,
+        groupDescription: groupData?.description,
+        postType: schedule.post_type,
+        specialOffer: schedule.special_offer,
+        targetAudience: schedule.target_audience,
+        additionalContext: schedule.special_context,
+        vehicleData: schedule.vehicle_data,
+        testimonialData: schedule.testimonial_data,
+        userProfile: {
+          full_name: schedule.profiles?.full_name || 'UCG Team',
+          email: schedule.profiles?.email,
+          whatsapp: schedule.profiles?.whatsapp
         }
-      ]
+      })
     })
 
-    const generatedContent = message.content[0].type === 'text' ? message.content[0].text : null
+    const data = await response.json()
 
-    return generatedContent
+    if (!response.ok || !data.content) {
+      console.error('Failed to generate content:', data)
+      return null
+    }
+
+    return data.content
 
   } catch (error) {
     console.error('Error generating content:', error)
@@ -416,7 +360,7 @@ function generateEmailHTML(
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
     <tr>
       <td align="center" style="padding: 40px 0;">
-        <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           
           <!-- Header -->
           <tr>
@@ -470,7 +414,7 @@ function generateEmailHTML(
                   ✨ Fresh Content Generated
                 </p>
                 <p style="margin: 8px 0 0 0; color: #166534; font-size: 13px;">
-                  This content was generated just now with current context, market conditions, and timely information.
+                  This content was generated just now with current context and timely information.
                 </p>
               </div>
 

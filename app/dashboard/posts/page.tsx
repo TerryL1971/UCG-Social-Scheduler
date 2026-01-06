@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Calendar, Clock, Users, Eye, RotateCw, CheckCircle, XCircle, Trash2, Plus } from 'lucide-react'
+import { Calendar, Clock, Users, Eye, RotateCw, CheckCircle, XCircle, Trash2, Plus, Mail } from 'lucide-react'
 
 type PostSchedule = {
   id: string
@@ -35,6 +35,7 @@ export default function PostsDashboardPage() {
   const [selectedSchedule, setSelectedSchedule] = useState<PostSchedule | null>(null)
   const [showContentModal, setShowContentModal] = useState(false)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSchedules()
@@ -83,32 +84,65 @@ export default function PostsDashboardPage() {
   }
 
   const handleRegenerateContent = async (schedule: PostSchedule) => {
-  if (!confirm('Generate fresh content for this post? This will replace any existing content.')) {
-    return
-  }
-
-  setRegeneratingId(schedule.id) // Changed from setRegenerating(true)
-  try {
-    // Call regenerate API
-    const response = await fetch(`/api/schedules/${schedule.id}/regenerate`, {
-      method: 'POST'
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to regenerate content')
+    if (!confirm('Generate fresh content for this post? This will replace any existing content.')) {
+      return
     }
 
-    alert('Content regenerated successfully! ✅')
-    await loadSchedules()
-  } catch (error) {
-    console.error('Error regenerating:', error)
-    alert(error instanceof Error ? error.message : 'Failed to regenerate content')
-  } finally {
-    setRegeneratingId(null) // Changed from setRegenerating(false)
+    setRegeneratingId(schedule.id)
+    try {
+      const response = await fetch(`/api/schedules/${schedule.id}/regenerate`, {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to regenerate content')
+      }
+
+      alert('Content regenerated successfully! ✅')
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error regenerating:', error)
+      alert(error instanceof Error ? error.message : 'Failed to regenerate content')
+    } finally {
+      setRegeneratingId(null)
+    }
   }
-}
+
+  const handleSendReminder = async (schedule: PostSchedule) => {
+    if (!schedule.generated_content) {
+      alert('No content generated yet. Please regenerate content first.')
+      return
+    }
+
+    if (!confirm(`Send reminder email now for "${schedule.facebook_groups.name}"?`)) {
+      return
+    }
+
+    setSendingReminderId(schedule.id)
+    try {
+      const response = await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduleId: schedule.id })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send reminder')
+      }
+
+      alert('Reminder email sent successfully! ✅ Check your inbox.')
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error sending reminder:', error)
+      alert(error instanceof Error ? error.message : 'Failed to send reminder')
+    } finally {
+      setSendingReminderId(null)
+    }
+  }
 
   const handleMarkAsPosted = async (scheduleId: string) => {
     if (!confirm('Mark this post as posted? This will move it to your posting history.')) {
@@ -378,27 +412,38 @@ export default function PostsDashboardPage() {
 
                 <div className="flex flex-col gap-2 ml-6">
                   {schedule.generated_content && (
-                    <button
-                      onClick={() => {
-                        setSelectedSchedule(schedule)
-                        setShowContentModal(true)
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View Content
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setSelectedSchedule(schedule)
+                          setShowContentModal(true)
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View Content
+                      </button>
+
+                      <button
+                        onClick={() => handleSendReminder(schedule)}
+                        disabled={sendingReminderId === schedule.id}
+                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+                        title="Send reminder email now"
+                      >
+                        <Mail className="w-4 h-4" />
+                        {sendingReminderId === schedule.id ? 'Sending...' : 'Send Reminder'}
+                      </button>
+                    </>
                   )}
 
                   {schedule.status !== 'posted' && (
                     <button
                       onClick={() => handleRegenerateContent(schedule)}
-                      disabled={regeneratingId === schedule.id} // Changed from: disabled={regenerating}
+                      disabled={regeneratingId === schedule.id}
                       className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
                     >
-                      <RotateCw className={`w-4 h-4 ${regeneratingId === schedule.id ? 'animate-spin' : ''}`} /> 
-                      {/* Changed from: ${regenerating ? 'animate-spin' : ''} */}
-                      Regenerate
+                      <RotateCw className={`w-4 h-4 ${regeneratingId === schedule.id ? 'animate-spin' : ''}`} />
+                      {regeneratingId === schedule.id ? 'Generating...' : 'Regenerate'}
                     </button>
                   )}
 
