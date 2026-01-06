@@ -61,7 +61,7 @@ export default function DashboardPage() {
 
       // Fetch scheduled posts count
       const { count: scheduledCount } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .in('status', ['pending', 'ready'])
@@ -254,7 +254,7 @@ export default function DashboardPage() {
       <div className="ucg-card p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/dashboard/posts/create">
+          <Link href="/dashboard/posts/schedule">
             <button className="ucg-btn-primary w-full justify-center">
               <Plus className="w-5 h-5" />
               Schedule New Post
@@ -287,7 +287,7 @@ export default function DashboardPage() {
           <Clock className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No upcoming posts</h3>
           <p className="text-gray-600 mb-4">Schedule your first post to get started</p>
-          <Link href="/dashboard/posts/create">
+          <Link href="/dashboard/posts/schedule">
             <button className="ucg-btn-primary">
               <Plus className="w-4 h-4" />
               Create Post

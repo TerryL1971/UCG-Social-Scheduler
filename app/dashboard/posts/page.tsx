@@ -34,7 +34,7 @@ export default function PostsDashboardPage() {
   const [schedules, setSchedules] = useState<PostSchedule[]>([])
   const [selectedSchedule, setSelectedSchedule] = useState<PostSchedule | null>(null)
   const [showContentModal, setShowContentModal] = useState(false)
-  const [regenerating, setRegenerating] = useState(false)
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSchedules()
@@ -83,32 +83,32 @@ export default function PostsDashboardPage() {
   }
 
   const handleRegenerateContent = async (schedule: PostSchedule) => {
-    if (!confirm('Generate fresh content for this post? This will replace any existing content.')) {
-      return
-    }
-
-    setRegenerating(true)
-    try {
-      // Call regenerate API
-      const response = await fetch(`/api/schedules/${schedule.id}/regenerate`, {
-        method: 'POST'
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to regenerate content')
-      }
-
-      alert('Content regenerated successfully! ✅')
-      await loadSchedules()
-    } catch (error) {
-      console.error('Error regenerating:', error)
-      alert(error instanceof Error ? error.message : 'Failed to regenerate content')
-    } finally {
-      setRegenerating(false)
-    }
+  if (!confirm('Generate fresh content for this post? This will replace any existing content.')) {
+    return
   }
+
+  setRegeneratingId(schedule.id) // Changed from setRegenerating(true)
+  try {
+    // Call regenerate API
+    const response = await fetch(`/api/schedules/${schedule.id}/regenerate`, {
+      method: 'POST'
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to regenerate content')
+    }
+
+    alert('Content regenerated successfully! ✅')
+    await loadSchedules()
+  } catch (error) {
+    console.error('Error regenerating:', error)
+    alert(error instanceof Error ? error.message : 'Failed to regenerate content')
+  } finally {
+    setRegeneratingId(null) // Changed from setRegenerating(false)
+  }
+}
 
   const handleMarkAsPosted = async (scheduleId: string) => {
     if (!confirm('Mark this post as posted? This will move it to your posting history.')) {
@@ -393,10 +393,11 @@ export default function PostsDashboardPage() {
                   {schedule.status !== 'posted' && (
                     <button
                       onClick={() => handleRegenerateContent(schedule)}
-                      disabled={regenerating}
+                      disabled={regeneratingId === schedule.id} // Changed from: disabled={regenerating}
                       className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
                     >
-                      <RotateCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
+                      <RotateCw className={`w-4 h-4 ${regeneratingId === schedule.id ? 'animate-spin' : ''}`} /> 
+                      {/* Changed from: ${regenerating ? 'animate-spin' : ''} */}
                       Regenerate
                     </button>
                   )}
