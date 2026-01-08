@@ -470,7 +470,7 @@ function generateEmailHTML(
             <td style="padding: 20px 40px; background-color: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
               <p style="margin: 0; color: #6b7280; font-size: 12px; text-align: center; line-height: 1.6;">
                 This is an automated reminder from UCG Social Scheduler<br>
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://ucg-social-scheduler.com'}" style="color: #dc2626; text-decoration: none;">ucg-social-scheduler.com</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://www.ucg-social-scheduler.com'}" style="color: #dc2626; text-decoration: none;">ucg-social-scheduler.com</a>
               </p>
             </td>
           </tr>
