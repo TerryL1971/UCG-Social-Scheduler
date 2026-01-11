@@ -456,20 +456,24 @@ export default function ViolationsPage() {
                 )}
 
                 {/* Contact buttons for unresolved violations */}
-                {(violation.violation_status === 'unresolved' || violation.violation_status === 'denied') && (
+                {!violation.authorization_granted_at &&
+                violation.violation_status !== 'justified' && (
                   <div className="mb-4 flex gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => sendEmail(
-                        violation.profiles?.email || '', 
-                        violation.profiles?.full_name || 'Salesperson',
-                        violation.violation_status
-                      )}
+                      onClick={() =>
+                        sendEmail(
+                          violation.profiles?.email || '',
+                          violation.profiles?.full_name || 'Salesperson',
+                          violation.violation_status || 'pending'
+                        )
+                      }
                     >
                       <Mail className="w-4 h-4 mr-1" />
                       Email Follow-up
                     </Button>
+
                     <Button
                       size="sm"
                       variant="outline"
@@ -479,7 +483,7 @@ export default function ViolationsPage() {
                       WhatsApp
                     </Button>
                   </div>
-                )}
+              )}
 
                 {violation.authorization_requested_at && !violation.authorization_granted_at && violation.violation_status !== 'denied' && (
                   <div className="flex gap-2">
