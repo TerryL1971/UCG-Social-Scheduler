@@ -98,11 +98,16 @@ export default function CreateSchedulePage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (selectedGroup && scheduledDate && scheduledTime) {
+  // Only check posting rules if we have valid data
+  if (selectedGroup && scheduledDate && scheduledTime) {
+    // Validate time format before checking
+    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
+    if (timeRegex.test(scheduledTime)) {
       checkPostingRules()
-    } else {
-      setPostingRules(null)
     }
+  } else {
+    setPostingRules(null)
+  }
   }, [selectedGroup, scheduledDate, scheduledTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadGroups = async () => {
@@ -125,6 +130,11 @@ export default function CreateSchedulePage() {
 
   const checkPostingRules = async () => {
     try {
+
+      if (!scheduledDate || !scheduledTime) {
+      return // Don't check if date/time not set yet
+      }
+
       const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString()
       
       const { data, error } = await supabase
