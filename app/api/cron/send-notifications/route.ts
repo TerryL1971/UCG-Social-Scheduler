@@ -490,4 +490,4 @@ export async function POST(request: Request) {
 }
 
 // Allow the route to run for up to 60 seconds
-export const maxDuration = 60
+export const maxDuration = 300
