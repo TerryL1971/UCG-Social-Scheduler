@@ -23,6 +23,8 @@ import {
   X,
   RotateCw
 } from 'lucide-react'
+import PWARegister from '../pwa-register'
+import PWAInstallButton from '@/components/PWAInstallButton'
 
 export default function DashboardLayout({
   children,
@@ -96,115 +98,124 @@ export default function DashboardLayout({
   )
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b-4 border-red-600 shadow-sm sticky top-0 z-40">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-              >
-                {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
-              
-              <Link href="/dashboard" className="flex items-center gap-3">
-                <Image 
-                  src="/ucg-logo.png" 
-                  alt="Used Car Guys" 
-                  width={120}
-                  height={40}      
-                  className="h-10 w-auto"
-                  priority
-                  unoptimized
-                />
-                <div className="hidden sm:block">
-                  <h1 className="text-lg font-bold text-gray-900">
-                    Social Scheduler
-                  </h1>
-                  <p className="text-xs text-gray-600">
-                    Used Car Guys Marketing
-                  </p>
-                </div>
-              </Link>
-            </div>
-
-            {/* User Menu */}
-            {userName && (
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:block text-right">
-                  <p className="text-sm font-medium text-gray-900">{userName}</p>
-                  <p className="text-xs text-gray-600 capitalize">{userRole}</p>
-                </div>
-                <ProfileAvatarUpload
-                  userId={userId}
-                  currentAvatar={avatarUrl}
-                  currentAvatarType={avatarType}
-                  userName={userName}
-                  onUpdate={handleAvatarUpdate}
-                />
+    <>
+      {/* PWA Components */}
+      <PWARegister />
+      
+      {/* Dashboard Layout */}
+      <div className="min-h-screen bg-gray-100">
+        {/* Header */}
+        <header className="bg-white border-b-4 border-red-600 shadow-sm sticky top-0 z-40">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo */}
+              <div className="flex items-center gap-4">
                 <button
-                  onClick={handleLogout}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  title="Logout"
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
                 >
-                  <LogOut className="w-5 h-5 text-gray-600" />
+                  {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className={`
-          fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 
-          transform transition-transform duration-300 ease-in-out lg:translate-x-0
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          h-screen lg:h-auto
-        `}>
-          <nav className="h-full overflow-y-auto p-4 space-y-1">
-            {filteredNavigation.map((item) => {
-              const isActive = pathname === item.href
-              const Icon = item.icon
-              
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all
-                    ${isActive 
-                      ? 'bg-red-600 hover:bg-red-700' 
-                      : 'text-gray-700 hover:bg-gray-100'
-                    }
-                  `}
-                >
-                  <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-gray-700'}`} />
-                  <span className={`${isActive ? 'text-white' : 'text-gray-700'}`}>{item.name}</span>
+                
+                <Link href="/dashboard" className="flex items-center gap-3">
+                  <Image 
+                    src="/ucg-logo.png" 
+                    alt="Used Car Guys" 
+                    width={120}
+                    height={40}      
+                    className="h-10 w-auto"
+                    priority
+                    unoptimized
+                  />
+                  <div className="hidden sm:block">
+                    <h1 className="text-lg font-bold text-gray-900">
+                      Social Scheduler
+                    </h1>
+                    <p className="text-xs text-gray-600">
+                      Used Car Guys Marketing
+                    </p>
+                  </div>
                 </Link>
-              )
-            })}
-          </nav>
-        </aside>
+              </div>
 
-        {/* Overlay for mobile */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+              {/* Add Install Button in the middle */}
+              <PWAInstallButton />
 
-        {/* Main Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-          {children}
-        </main>
+              {/* User Menu */}
+              {userName && (
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:block text-right">
+                    <p className="text-sm font-medium text-gray-900">{userName}</p>
+                    <p className="text-xs text-gray-600 capitalize">{userRole}</p>
+                  </div>
+                  <ProfileAvatarUpload
+                    userId={userId}
+                    currentAvatar={avatarUrl}
+                    currentAvatarType={avatarType}
+                    userName={userName}
+                    onUpdate={handleAvatarUpdate}
+                  />
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Logout"
+                  >
+                    <LogOut className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="flex">
+          {/* Sidebar */}
+          <aside className={`
+            fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 
+            transform transition-transform duration-300 ease-in-out lg:translate-x-0
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            h-screen lg:h-auto
+          `}>
+            <nav className="h-full overflow-y-auto p-4 space-y-1">
+              {filteredNavigation.map((item) => {
+                const isActive = pathname === item.href
+                const Icon = item.icon
+                
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`
+                      flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all
+                      ${isActive 
+                        ? 'bg-red-600 hover:bg-red-700' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                      }
+                    `}
+                  >
+                    <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-gray-700'}`} />
+                    <span className={`${isActive ? 'text-white' : 'text-gray-700'}`}>{item.name}</span>
+                  </Link>
+                )
+              })}
+            </nav>
+          </aside>
+
+          {/* Overlay for mobile */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+
+          {/* Main Content */}
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
