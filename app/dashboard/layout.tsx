@@ -20,7 +20,8 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  RotateCw
 } from 'lucide-react'
 
 export default function DashboardLayout({
@@ -79,6 +80,7 @@ export default function DashboardLayout({
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Recurring Posts', href: '/dashboard/posts/recurring', icon: RotateCw, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Territories', href: '/dashboard/territories', icon: MapPin, roles: ['salesperson', 'manager', 'admin', 'owner'] },
