@@ -1,4 +1,4 @@
-// app/dashboard/layout.tsx
+//  app/dashboard/layout.tsx
 
 'use client'
 
@@ -24,7 +24,99 @@ import {
   RotateCw
 } from 'lucide-react'
 import PWARegister from '../pwa-register'
-import PWAInstallButton from '@/components/PWAInstallButton'
+
+// PWA Install Button Component
+function PWAInstallButton() {
+  console.log('🚨🚨🚨 PWA BUTTON FUNCTION CALLED 🚨🚨🚨')
+  
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [isInstallable, setIsInstallable] = useState(false)
+  const [isInstalled, setIsInstalled] = useState(false)
+
+  console.log('🔵 PWA Button rendering, state:', { isInstallable, isInstalled })
+
+  useEffect(() => {
+    console.log('🎯 PWA Button useEffect running')
+    
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('✅ Already installed as PWA')
+      setIsInstalled(true)
+      return
+    }
+
+    const handler = (e: any) => {
+      console.log('🚀 Install prompt event fired!')
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setIsInstallable(true)
+    }
+
+    window.addEventListener('beforeinstallprompt', handler)
+    console.log('👂 Listening for install prompt event')
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      console.log('🧹 Cleaned up install listener')
+    }
+  }, [])
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) {
+      console.log('❌ No deferred prompt available')
+      return
+    }
+    
+    console.log('📱 Showing install prompt')
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    console.log('👤 User choice:', outcome)
+    
+    if (outcome === 'accepted') {
+      setIsInstalled(true)
+    }
+    setDeferredPrompt(null)
+    setIsInstallable(false)
+  }
+
+  console.log('🎨 Rendering PWA button UI')
+
+  // Already installed
+  if (isInstalled) {
+    console.log('✅ Returning INSTALLED UI')
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+        <span>Installed</span>
+      </div>
+    )
+  }
+
+  // Installable
+  if (isInstallable) {
+    console.log('📱 Returning INSTALLABLE UI')
+    return (
+      <button
+        onClick={handleInstall}
+        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-sm transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        <span>Install App</span>
+      </button>
+    )
+  }
+
+  // Default waiting state
+  console.log('⏳ Returning WAITING UI')
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-bold border-2 border-yellow-600">
+      <span>🔄 PWA Ready</span>
+    </div>
+  )
+}
 
 export default function DashboardLayout({
   children,
@@ -75,7 +167,6 @@ export default function DashboardLayout({
   }
 
   const handleAvatarUpdate = async () => {
-    // Refresh the profile data to show the new avatar
     await checkUser()
   }
 
@@ -97,18 +188,16 @@ export default function DashboardLayout({
     item.roles.includes(userRole)
   )
 
+  console.log('🔷 Layout rendering')
+
   return (
     <>
-      {/* PWA Components */}
       <PWARegister />
       
-      {/* Dashboard Layout */}
       <div className="min-h-screen bg-gray-100">
-        {/* Header */}
         <header className="bg-white border-b-4 border-red-600 shadow-sm sticky top-0 z-40">
           <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
-              {/* Logo */}
+            <div className="flex items-center h-16 gap-4">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -138,38 +227,41 @@ export default function DashboardLayout({
                 </Link>
               </div>
 
-              {/* Add Install Button in the middle */}
+              <div className="flex-1" />
+
               <PWAInstallButton />
 
-              {/* User Menu */}
-              {userName && (
-                <div className="flex items-center gap-3">
-                  <div className="hidden sm:block text-right">
-                    <p className="text-sm font-medium text-gray-900">{userName}</p>
-                    <p className="text-xs text-gray-600 capitalize">{userRole}</p>
-                  </div>
-                  <ProfileAvatarUpload
-                    userId={userId}
-                    currentAvatar={avatarUrl}
-                    currentAvatarType={avatarType}
-                    userName={userName}
-                    onUpdate={handleAvatarUpdate}
-                  />
-                  <button
-                    onClick={handleLogout}
-                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    title="Logout"
-                  >
-                    <LogOut className="w-5 h-5 text-gray-600" />
-                  </button>
-                </div>
-              )}
+              <div className="flex-1" />
+
+              <div className="flex items-center gap-3">
+                {userName && (
+                  <>
+                    <div className="hidden sm:block text-right">
+                      <p className="text-sm font-medium text-gray-900">{userName}</p>
+                      <p className="text-xs text-gray-600 capitalize">{userRole}</p>
+                    </div>
+                    <ProfileAvatarUpload
+                      userId={userId}
+                      currentAvatar={avatarUrl}
+                      currentAvatarType={avatarType}
+                      userName={userName}
+                      onUpdate={handleAvatarUpdate}
+                    />
+                    <button
+                      onClick={handleLogout}
+                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                      title="Logout"
+                    >
+                      <LogOut className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </header>
 
         <div className="flex">
-          {/* Sidebar */}
           <aside className={`
             fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 
             transform transition-transform duration-300 ease-in-out lg:translate-x-0
@@ -202,7 +294,6 @@ export default function DashboardLayout({
             </nav>
           </aside>
 
-          {/* Overlay for mobile */}
           {sidebarOpen && (
             <div
               className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
@@ -210,7 +301,6 @@ export default function DashboardLayout({
             />
           )}
 
-          {/* Main Content */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
             {children}
           </main>
