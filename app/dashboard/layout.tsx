@@ -27,20 +27,15 @@ import PWARegister from '../pwa-register'
 
 // PWA Install Button Component
 function PWAInstallButton() {
-  const [mounted, setMounted] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallable, setIsInstallable] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
 
-  // Handle client-side mounting first
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!mounted) return
-    
     console.log('🎯 PWA Button useEffect running')
+    
+    // Check if running in browser
+    if (typeof window === 'undefined') return
     
     if (window.matchMedia('(display-mode: standalone)').matches) {
       console.log('✅ Already installed as PWA')
@@ -60,31 +55,20 @@ function PWAInstallButton() {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
-      console.log('🧹 Cleaned up install listener')
     }
-  }, [mounted])
+  }, [])
 
   const handleInstall = async () => {
-    if (!deferredPrompt) {
-      console.log('❌ No deferred prompt available')
-      return
-    }
+    if (!deferredPrompt) return
     
-    console.log('📱 Showing install prompt')
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
-    console.log('👤 User choice:', outcome)
     
     if (outcome === 'accepted') {
       setIsInstalled(true)
     }
     setDeferredPrompt(null)
     setIsInstallable(false)
-  }
-
-  // Don't render anything until mounted on client
-  if (!mounted) {
-    return null
   }
 
   // Already installed
@@ -114,7 +98,7 @@ function PWAInstallButton() {
     )
   }
 
-  // Default waiting state
+  // Always show the waiting state
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-bold border-2 border-yellow-600">
       <span>🔄 PWA Ready</span>
