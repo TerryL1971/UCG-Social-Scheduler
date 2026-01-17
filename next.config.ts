@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  
+  // Enable PWA in production
+  // swcMinify: true,
   
   // Add headers for PWA
   async headers() {
