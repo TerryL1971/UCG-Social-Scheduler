@@ -30,12 +30,13 @@ function PWAInstallButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallable, setIsInstallable] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
+  const [isBrowser, setIsBrowser] = useState(false)
 
   useEffect(() => {
-    console.log('🎯 PWA Button useEffect running')
+    // Mark that we're in the browser
+    setIsBrowser(true)
     
-    // Check if running in browser
-    if (typeof window === 'undefined') return
+    console.log('🎯 PWA Button useEffect running')
     
     if (window.matchMedia('(display-mode: standalone)').matches) {
       console.log('✅ Already installed as PWA')
@@ -71,6 +72,15 @@ function PWAInstallButton() {
     setIsInstallable(false)
   }
 
+  // Don't show anything during SSR
+  if (!isBrowser) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-bold border-2 border-gray-300">
+        <span>...</span>
+      </div>
+    )
+  }
+
   // Already installed
   if (isInstalled) {
     return (
@@ -98,7 +108,7 @@ function PWAInstallButton() {
     )
   }
 
-  // Always show the waiting state
+  // Waiting state
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-bold border-2 border-yellow-600">
       <span>🔄 PWA Ready</span>
