@@ -27,15 +27,19 @@ import PWARegister from '../pwa-register'
 
 // PWA Install Button Component
 function PWAInstallButton() {
-  console.log('🚨🚨🚨 PWA BUTTON FUNCTION CALLED 🚨🚨🚨')
-  
+  const [mounted, setMounted] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallable, setIsInstallable] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
 
-  console.log('🔵 PWA Button rendering, state:', { isInstallable, isInstalled })
+  // Handle client-side mounting first
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
+    if (!mounted) return
+    
     console.log('🎯 PWA Button useEffect running')
     
     if (window.matchMedia('(display-mode: standalone)').matches) {
@@ -58,7 +62,7 @@ function PWAInstallButton() {
       window.removeEventListener('beforeinstallprompt', handler)
       console.log('🧹 Cleaned up install listener')
     }
-  }, [])
+  }, [mounted])
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
@@ -78,11 +82,13 @@ function PWAInstallButton() {
     setIsInstallable(false)
   }
 
-  console.log('🎨 Rendering PWA button UI')
+  // Don't render anything until mounted on client
+  if (!mounted) {
+    return null
+  }
 
   // Already installed
   if (isInstalled) {
-    console.log('✅ Returning INSTALLED UI')
     return (
       <div className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,7 +101,6 @@ function PWAInstallButton() {
 
   // Installable
   if (isInstallable) {
-    console.log('📱 Returning INSTALLABLE UI')
     return (
       <button
         onClick={handleInstall}
@@ -110,7 +115,6 @@ function PWAInstallButton() {
   }
 
   // Default waiting state
-  console.log('⏳ Returning WAITING UI')
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-bold border-2 border-yellow-600">
       <span>🔄 PWA Ready</span>
@@ -187,8 +191,6 @@ export default function DashboardLayout({
   const filteredNavigation = navigation.filter(item => 
     item.roles.includes(userRole)
   )
-
-  console.log('🔷 Layout rendering')
 
   return (
     <>
