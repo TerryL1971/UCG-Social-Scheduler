@@ -1,4 +1,4 @@
-//  app/dashboard/layout.tsx
+// app/dashboard/layout.tsx
 
 'use client'
 
@@ -21,7 +21,8 @@ import {
   LogOut,
   Menu,
   X,
-  RotateCw
+  RotateCw,
+  Sparkles
 } from 'lucide-react'
 import PWARegister from '../pwa-register'
 
@@ -30,29 +31,24 @@ function PWAInstallButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallable, setIsInstallable] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
-  const [isBrowser, setIsBrowser] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // Mark that we're in the browser
-    setIsBrowser(true)
+    setMounted(true)
     
-    console.log('🎯 PWA Button useEffect running')
-    
+    // Check if already running as installed app
     if (window.matchMedia('(display-mode: standalone)').matches) {
-      console.log('✅ Already installed as PWA')
       setIsInstalled(true)
       return
     }
 
     const handler = (e: any) => {
-      console.log('🚀 Install prompt event fired!')
       e.preventDefault()
       setDeferredPrompt(e)
       setIsInstallable(true)
     }
 
     window.addEventListener('beforeinstallprompt', handler)
-    console.log('👂 Listening for install prompt event')
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
@@ -72,28 +68,28 @@ function PWAInstallButton() {
     setIsInstallable(false)
   }
 
-  // Don't show anything during SSR
-  if (!isBrowser) {
+  // Don't render anything until mounted (prevents hydration mismatch)
+  if (!mounted) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-bold border-2 border-gray-300">
+      <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold">
         <span>...</span>
       </div>
     )
   }
 
-  // Already installed
+  // Already installed - show green badge
   if (isInstalled) {
     return (
       <div className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
-        <span>Installed</span>
+        <span className="hidden sm:inline">Installed</span>
       </div>
     )
   }
 
-  // Installable
+  // Installable - show red install button
   if (isInstallable) {
     return (
       <button
@@ -103,14 +99,15 @@ function PWAInstallButton() {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
         </svg>
-        <span>Install App</span>
+        <span className="hidden sm:inline">Install App</span>
+        <span className="sm:hidden">Install</span>
       </button>
     )
   }
 
-  // Waiting state
+  // Not installable yet - show waiting state
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-bold border-2 border-yellow-600">
+    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-semibold border-2 border-yellow-600">
       <span>🔄 PWA Ready</span>
     </div>
   )
@@ -171,6 +168,7 @@ export default function DashboardLayout({
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Create Post', href: '/dashboard/posts/create', icon: Sparkles, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Recurring Posts', href: '/dashboard/posts/recurring', icon: RotateCw, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'owner'] },
@@ -186,6 +184,10 @@ export default function DashboardLayout({
     item.roles.includes(userRole)
   )
 
+  console.log('🔍 Debug - User Role:', userRole)
+  console.log('🔍 Debug - All Nav Items:', navigation.length)
+  console.log('🔍 Debug - Filtered Nav:', filteredNavigation.map(n => n.name))
+
   return (
     <>
       <PWARegister />
@@ -194,6 +196,7 @@ export default function DashboardLayout({
         <header className="bg-white border-b-4 border-red-600 shadow-sm sticky top-0 z-40">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center h-16 gap-4">
+              {/* Left: Logo */}
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -223,12 +226,16 @@ export default function DashboardLayout({
                 </Link>
               </div>
 
+              {/* Spacer */}
               <div className="flex-1" />
 
+              {/* PWA Button - Always Visible */}
               <PWAInstallButton />
 
+              {/* Spacer */}
               <div className="flex-1" />
 
+              {/* Right: User Menu - Only shows when userName loaded */}
               <div className="flex items-center gap-3">
                 {userName && (
                   <>
@@ -277,7 +284,7 @@ export default function DashboardLayout({
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all
                       ${isActive 
-                        ? 'bg-red-600 hover:bg-red-700' 
+                        ? 'bg-red-600 text-white hover:bg-red-700' 
                         : 'text-gray-700 hover:bg-gray-100'
                       }
                     `}
