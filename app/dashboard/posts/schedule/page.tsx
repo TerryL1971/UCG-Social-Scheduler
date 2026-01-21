@@ -213,7 +213,7 @@ export default function CreateSchedulePage() {
         territory_id: selectedGroup.territory_id,
         scheduled_for: scheduledFor,
         post_type: postType,
-        status: 'scheduled',
+        status: 'pending',
         territory_violation_acknowledged: acknowledgeViolation,
         is_ai_generated: true,
         ai_metadata: aiMetadata,
