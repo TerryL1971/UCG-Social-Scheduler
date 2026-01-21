@@ -96,7 +96,12 @@ export default function CreatePostPage() {
   const loadGroups = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.log('No user found')
+        return
+      }
+
+      console.log('Loading groups for user:', user.id)
 
       // Load user profile
       const { data: profile } = await supabase
@@ -107,22 +112,29 @@ export default function CreatePostPage() {
 
       if (profile) {
         setUserProfile(profile)
+        console.log('User profile loaded:', profile)
       }
 
       const { data, error: groupsError } = await supabase
         .from('facebook_groups')
-        .select('*, territories!inner(name)')
+        .select('id, name, territory_id, group_type, description, territories(name)')
         .eq('user_id', user.id)
         .eq('is_active', true)
 
-      if (groupsError) throw groupsError
+      console.log('Groups query result:', { data, error: groupsError })
+
+      if (groupsError) {
+        console.error('Groups query error:', groupsError)
+        throw groupsError
+      }
 
       // Flatten the territories relationship
       const flattenedData = data?.map(group => ({
         ...group,
         territories: Array.isArray(group.territories) ? group.territories[0] : group.territories
-      }))
+      })) || []
 
+      console.log('Flattened groups:', flattenedData)
       setGroups(flattenedData || [])
     } catch (err) {
       console.error('Error loading groups:', err)
@@ -270,27 +282,50 @@ export default function CreatePostPage() {
       const group = groups.find(g => g.id === selectedGroup)
       const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00`)
 
+      console.log('💾 Attempting to save post:', {
+        user_id: user.id,
+        group_id: selectedGroup,
+        group_name: group?.name,
+        territory_id: group?.territory_id,
+        scheduled_for: scheduledFor.toISOString(),
+        content_length: editedContent.length,
+        post_type: postType
+      })
+
       const { data: postData, error: saveError } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .insert({
           user_id: user.id,
           group_id: selectedGroup,
           territory_id: group?.territory_id,
           generated_content: editedContent,
           scheduled_for: scheduledFor.toISOString(),
-          status: 'pending',
-          is_ai_generated: generatedContent ? true : false,
+          status: 'content_ready',
+          reminder_sent: false,
+          content_generated_at: new Date().toISOString(),
           post_type: postType,
-          paid_by: 'none'
+          is_recurring: false
         })
         .select()
 
-      if (saveError) throw saveError
+      console.log('💾 Save response:', { data: postData, error: saveError })
+
+      if (saveError) {
+        console.error('❌ Supabase save error:', saveError)
+        throw saveError
+      }
+
+      if (!postData || postData.length === 0) {
+        console.error('❌ No data returned from insert')
+        throw new Error('Post was not saved - no data returned')
+      }
+
+      console.log('✅ Post saved successfully:', postData)
       
       alert('Post scheduled successfully! ✅')
       router.push('/dashboard/posts')
     } catch (err) {
-      console.error('Error saving post:', err)
+      console.error('❌ Error saving post:', err)
       const errorMsg = err instanceof Error ? err.message : 'Failed to save post'
       setError(errorMsg)
       alert('Error: ' + errorMsg)
