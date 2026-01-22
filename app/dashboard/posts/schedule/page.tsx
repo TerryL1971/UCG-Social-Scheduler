@@ -1,8 +1,10 @@
+// app/dashboard/posts/schedule/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, Users, MapPin, Sparkles, ArrowLeft } from 'lucide-react'
 
 type FacebookGroup = {
@@ -32,6 +34,7 @@ type TestimonialData = {
 
 export default function CreateSchedulePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   
   const [groups, setGroups] = useState<FacebookGroup[]>([])
@@ -40,6 +43,10 @@ export default function CreateSchedulePage() {
   const [showViolationModal, setShowViolationModal] = useState(false)
   const [userTerritories, setUserTerritories] = useState<string[]>([])
   const [primaryTerritoryId, setPrimaryTerritoryId] = useState<string | null>(null)
+  
+  // Check if we're in "edit mode" (redirected from edit page)
+  const scheduleId = searchParams.get('scheduleId')
+  const isEditMode = !!scheduleId
   
   // Form state
   const [selectedGroupId, setSelectedGroupId] = useState('')
@@ -73,10 +80,62 @@ export default function CreateSchedulePage() {
     loadUserTerritories()
   }, [])
 
+  // Pre-fill form from URL params after groups are loaded
+  useEffect(() => {
+    if (groups.length > 0 && searchParams.get('groupId')) {
+      const groupId = searchParams.get('groupId')
+      const scheduledFor = searchParams.get('scheduledFor')
+      const postTypeParam = searchParams.get('postType')
+      const notesParam = searchParams.get('notes')
+      const metadataParam = searchParams.get('metadata')
+      
+      if (groupId) {
+        setSelectedGroupId(groupId)
+      }
+      
+      if (scheduledFor) {
+        const date = new Date(scheduledFor)
+        setScheduledDate(date.toISOString().split('T')[0])
+        setScheduledTime(date.toTimeString().slice(0, 5))
+      }
+
+      if (postTypeParam) {
+        setPostType(postTypeParam as PostType)
+      }
+
+      if (notesParam) {
+        setOccasion(notesParam)
+      }
+
+      // Restore metadata
+      if (metadataParam) {
+        try {
+          const metadata = JSON.parse(metadataParam)
+          
+          if (metadata.target_audience) {
+            setTargetAudience(metadata.target_audience)
+          }
+          
+          if (metadata.special_offer) {
+            setSpecialOffer(metadata.special_offer)
+          }
+          
+          if (metadata.vehicle_data) {
+            setVehicleData(metadata.vehicle_data)
+          }
+          
+          if (metadata.testimonial_data) {
+            setTestimonialData(metadata.testimonial_data)
+          }
+        } catch (e) {
+          console.error('Error parsing metadata:', e)
+        }
+      }
+    }
+  }, [groups, searchParams])
+
   async function loadGroups() {
     try {
-      console.log('🔍 Loading groups for schedule page...')
-      
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         router.push('/login')
@@ -97,14 +156,8 @@ export default function CreateSchedulePage() {
         .eq('is_active', true)
         .order('name')
 
-      if (error) {
-        console.error('❌ Error loading groups:', error)
-        throw error
-      }
+      if (error) throw error
 
-      console.log('✅ Raw groups data:', data)
-
-      // Flatten territories array to single object
       const flattenedData = data?.map(group => ({
         ...group,
         territories: Array.isArray(group.territories) 
@@ -112,7 +165,6 @@ export default function CreateSchedulePage() {
           : group.territories
       })) || []
 
-      console.log('✅ Flattened groups:', flattenedData)
       setGroups(flattenedData)
     } catch (error) {
       console.error('Error loading groups:', error)
@@ -157,21 +209,12 @@ export default function CreateSchedulePage() {
       return
     }
 
-    // Check for territory violation
     const selectedGroup = groups.find(g => g.id === selectedGroupId)
     
-    // If user has no territories assigned, treat ANY group with a territory as a violation
     const hasViolation = selectedGroup?.territory_id && (
       userTerritories.length === 0 || 
       !userTerritories.includes(selectedGroup.territory_id)
     )
-    
-    console.log('🔍 Territory check:', {
-      selectedGroup: selectedGroup?.name,
-      groupTerritory: selectedGroup?.territory_id,
-      userTerritories,
-      hasViolation
-    })
     
     if (hasViolation) {
       setShowViolationModal(true)
@@ -190,10 +233,8 @@ export default function CreateSchedulePage() {
       const selectedGroup = groups.find(g => g.id === selectedGroupId)
       if (!selectedGroup) throw new Error('Group not found')
 
-      // Combine date and time
       const scheduledFor = `${scheduledDate}T${scheduledTime}:00`
 
-      // Prepare AI metadata with all the generation parameters
       const aiMetadata = {
         post_type: postType,
         special_context: occasion || null,
@@ -215,32 +256,40 @@ export default function CreateSchedulePage() {
         post_type: postType,
         status: 'pending',
         territory_violation_acknowledged: acknowledgeViolation,
+        violation_status: acknowledgeViolation ? 'unresolved' : null,
         is_ai_generated: true,
         ai_metadata: aiMetadata,
         notes: occasion || null,
-        generated_content: '' // Empty string as placeholder - will be generated by cron job
+        generated_content: ''
       }
 
-      console.log('📅 Scheduling post:', saveData)
-
-      const { data, error } = await supabase
-        .from('scheduled_posts')
-        .insert(saveData)
-        .select()
-
-      if (error) {
-        console.error('❌ Database error:', error)
-        throw error
+      let result
+      if (isEditMode && scheduleId) {
+        result = await supabase
+          .from('scheduled_posts')
+          .update(saveData)
+          .eq('id', scheduleId)
+          .select()
+      } else {
+        result = await supabase
+          .from('scheduled_posts')
+          .insert(saveData)
+          .select()
       }
 
-      console.log('✅ Post scheduled successfully:', data)
-      alert('Post scheduled successfully! The system will generate content before posting.')
+      if (result.error) throw result.error
+
+      const message = isEditMode 
+        ? 'Post rescheduled successfully! The system will generate new content before posting.'
+        : 'Post scheduled successfully! The system will generate content before posting.'
+      
+      alert(message)
       setShowViolationModal(false)
-      router.push('/dashboard/posts')
+      router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')
       
     } catch (error: any) {
-      console.error('❌ Schedule error:', error)
-      alert(`Failed to schedule post: ${error.message}`)
+      console.error('Schedule error:', error)
+      alert(`Failed to ${isEditMode ? 'update' : 'schedule'} post: ${error.message}`)
     } finally {
       setSaving(false)
     }
@@ -258,26 +307,28 @@ export default function CreateSchedulePage() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push('/dashboard/posts')}
+          onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Posts
+          {isEditMode ? 'Back to Violations' : 'Back to Posts'}
         </button>
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
           <Calendar className="w-8 h-8 text-blue-600" />
-          Schedule Post for Future Generation
+          {isEditMode ? 'Edit & Reschedule Post' : 'Schedule Post for Future Generation'}
         </h1>
         <p className="text-gray-600 mt-2">
-          Schedule a post to be automatically generated by AI and ready for posting at the specified time
+          {isEditMode 
+            ? 'Update your scheduling parameters and regenerate content for this post'
+            : 'Schedule a post to be automatically generated by AI and ready for posting at the specified time'
+          }
         </p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        {/* Step 1: Select Group */}
+        {/* Select Group */}
         <div className="mb-8">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
             <Users className="w-5 h-5 text-blue-600" />
@@ -305,7 +356,7 @@ export default function CreateSchedulePage() {
           )}
         </div>
 
-        {/* Step 2: Post Type */}
+        {/* Post Type */}
         <div className="mb-8">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
             <Sparkles className="w-5 h-5 text-purple-600" />
@@ -425,7 +476,7 @@ export default function CreateSchedulePage() {
           </div>
         )}
 
-        {/* Step 3: Occasion (Optional) */}
+        {/* Occasion */}
         <div className="mb-8">
           <label className="text-lg font-semibold text-gray-900 mb-3 block">
             Occasion or Theme (Optional)
@@ -453,7 +504,7 @@ export default function CreateSchedulePage() {
           />
         </div>
 
-        {/* Step 4: Schedule Date & Time */}
+        {/* Schedule Date & Time */}
         <div className="mb-8">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
             <Calendar className="w-5 h-5 text-green-600" />
@@ -500,7 +551,7 @@ export default function CreateSchedulePage() {
         {/* Action Buttons */}
         <div className="flex gap-4">
           <button
-            onClick={() => router.push('/dashboard/posts')}
+            onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
             className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Cancel
@@ -511,11 +562,11 @@ export default function CreateSchedulePage() {
             className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {saving ? (
-              <>Scheduling...</>
+              <>{isEditMode ? 'Updating...' : 'Scheduling...'}</>
             ) : (
               <>
                 <Calendar className="w-5 h-5" />
-                Schedule Post
+                {isEditMode ? 'Update Schedule' : 'Schedule Post'}
               </>
             )}
           </button>
@@ -573,7 +624,7 @@ export default function CreateSchedulePage() {
                 disabled={saving}
                 className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? 'Scheduling...' : 'Proceed Anyway'}
+                {saving ? (isEditMode ? 'Updating...' : 'Scheduling...') : 'Proceed Anyway'}
               </button>
             </div>
           </div>

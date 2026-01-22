@@ -6,14 +6,14 @@ import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-// Textarea component removed - we'll use standard textarea
 import { 
   AlertTriangle, 
   Edit, 
   Trash2, 
   CheckCircle,
   MessageSquare,
-  Clock
+  Clock,
+  Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -173,6 +173,74 @@ export default function MyViolationsPage() {
     }
   }
 
+  const handleGenerateNow = async (violationId: string) => {
+    setActionLoading(violationId)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      // Get the full post data including ai_metadata
+      const { data: postData, error: fetchError } = await supabase
+        .from('scheduled_posts')
+        .select('*, facebook_groups(name, territories(name))')
+        .eq('id', violationId)
+        .single()
+
+      if (fetchError || !postData) throw new Error('Failed to fetch post data')
+
+      // Extract AI metadata
+      const aiMetadata = postData.ai_metadata || {}
+      const groupData = Array.isArray(postData.facebook_groups) 
+        ? postData.facebook_groups[0] 
+        : postData.facebook_groups
+
+      const territories = groupData?.territories
+      const territoryName = Array.isArray(territories) ? territories[0]?.name : territories?.name
+
+      // Call AI API to generate content
+      const response = await fetch('/api/posts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupName: groupData?.name || 'Unknown',
+          territory: territoryName || 'Unknown',
+          postType: postData.post_type,
+          specialOffer: aiMetadata.special_offer,
+          targetAudience: aiMetadata.target_audience,
+          additionalContext: aiMetadata.special_context,
+          vehicleData: aiMetadata.vehicle_data,
+          testimonialData: aiMetadata.testimonial_data
+        })
+      })
+
+      const result = await response.json()
+      
+      if (!response.ok || !result.content) {
+        throw new Error(result.details || 'Failed to generate content')
+      }
+
+      // Update post with generated content
+      const { error: updateError } = await supabase
+        .from('scheduled_posts')
+        .update({
+          generated_content: result.content,
+          status: 'ready'
+        })
+        .eq('id', violationId)
+
+      if (updateError) throw updateError
+
+      alert('Content generated successfully! ✅')
+      await fetchViolations()
+      
+    } catch (error: any) {
+      console.error('Error generating content:', error)
+      alert(`Failed to generate content: ${error.message}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const getStatusBadge = (violation: Violation) => {
     if (violation.authorization_granted_at) {
       return (
@@ -230,7 +298,7 @@ export default function MyViolationsPage() {
             <div className="text-center">
               <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No Violations</h3>
-                                    <p className="text-gray-600">You don&apos;t have any territory violations. Great job! 🎉</p>
+              <p className="text-gray-600">You don&apos;t have any territory violations. Great job! 🎉</p>
             </div>
           </CardContent>
         </Card>
@@ -261,11 +329,20 @@ export default function MyViolationsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="mb-4">
-                  <p className="text-sm text-gray-700 line-clamp-3">
-                    {violation.generated_content}
-                  </p>
-                </div>
+                {violation.generated_content ? (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-700 line-clamp-3">
+                      {violation.generated_content}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-sm text-yellow-800 flex items-center">
+                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      Content not yet generated. Click &quot;Edit Post&quot; to create content immediately.
+                    </p>
+                  </div>
+                )}
 
                 {violation.violation_justification && (
                   <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded">
@@ -278,6 +355,7 @@ export default function MyViolationsPage() {
                   <div className="space-y-4">
                     {/* Action Buttons */}
                     <div className="flex flex-wrap gap-2">
+                      {/* Always show Edit Post button - it will redirect to schedule page */}
                       <Link href={`/dashboard/posts/${violation.id}/edit`}>
                         <Button
                           size="sm"
@@ -288,6 +366,20 @@ export default function MyViolationsPage() {
                           Edit Post
                         </Button>
                       </Link>
+
+                      {/* Show Generate Now button if content doesn't exist */}
+                      {!violation.generated_content && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-50 border-green-600 text-green-700 hover:bg-green-100"
+                          onClick={() => handleGenerateNow(violation.id)}
+                          disabled={actionLoading === violation.id}
+                        >
+                          <Sparkles className="w-4 h-4 mr-1" />
+                          {actionLoading === violation.id ? 'Generating...' : 'Generate Now'}
+                        </Button>
+                      )}
 
                       <Button
                         size="sm"
