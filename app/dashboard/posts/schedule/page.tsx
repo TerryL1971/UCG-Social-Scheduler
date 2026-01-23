@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, Users, MapPin, Sparkles, ArrowLeft } from 'lucide-react'
@@ -32,7 +32,7 @@ type TestimonialData = {
   experience: string
 }
 
-export default function CreateSchedulePage() {
+function SchedulePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -631,5 +631,17 @@ export default function CreateSchedulePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function CreateSchedulePage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="animate-pulse">Loading...</div>
+      </div>
+    }>
+      <SchedulePageContent />
+    </Suspense>
   )
 }
