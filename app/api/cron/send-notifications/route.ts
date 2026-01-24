@@ -6,7 +6,6 @@ import { NextResponse } from 'next/server'
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
-// Create a Supabase client with service role for cron jobs
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -70,20 +69,17 @@ interface PostSchedule {
 
 export async function GET(request: Request) {
   try {
-    // Verify the request is from your cron service
     const authHeader = request.headers.get('authorization')
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       console.error('❌ Unauthorized cron request')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get current time and 2 hours from now
     const now = new Date()
     const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
 
     console.log(`⏰ [${now.toISOString()}] Checking for schedules between ${now.toISOString()} and ${twoHoursFromNow.toISOString()}`)
 
-    // Find schedules in the next 2 hours that haven't been reminded
     const { data: schedules, error } = await supabase
       .from('post_schedules')
       .select(`
@@ -99,9 +95,10 @@ export async function GET(request: Request) {
         testimonial_data,
         special_offer,
         generated_content,
-        facebook_groups!inner(name, group_url, group_type, description, territories(name))
+        facebook_groups!inner(name, group_url, group_type, description, territories(name)),
+        profiles!inner(full_name, email, whatsapp)
       `)
-      .eq('status', 'scheduled')
+      .in('status', ['scheduled', 'content_ready'])
       .gte('scheduled_for', now.toISOString())
       .lte('scheduled_for', twoHoursFromNow.toISOString())
       .or('reminder_sent.is.null,reminder_sent.eq.false')
@@ -121,27 +118,14 @@ export async function GET(request: Request) {
       })
     }
 
-    // Get user profiles separately
-    const userIds = [...new Set(schedules.map(s => s.user_id))]
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, whatsapp')
-      .in('id', userIds)
-
-    const profileMap = new Map(profiles?.map(p => [p.id, p]) || [])
-
     const emailPromises = schedules.map(async (schedule) => {
-      const profile = profileMap.get(schedule.user_id)
-      
-      if (!profile?.email) {
-        console.log(`⚠️ No email found for user ${schedule.user_id}`)
-        return null
-      }
-
-      // Extract first group from array (Supabase returns arrays for joins)
       const rawGroup = Array.isArray(schedule.facebook_groups) 
         ? schedule.facebook_groups[0] 
         : schedule.facebook_groups
+
+      const rawProfile = Array.isArray(schedule.profiles)
+        ? schedule.profiles[0]
+        : schedule.profiles
 
       const typedSchedule: PostSchedule = {
         id: schedule.id,
@@ -165,7 +149,7 @@ export async function GET(request: Request) {
             ? { name: rawGroup.territories[0].name }
             : undefined
         } : null,
-        profiles: profile
+        profiles: rawProfile || null
       }
       
       if (!typedSchedule.profiles?.email) {
@@ -185,7 +169,6 @@ export async function GET(request: Request) {
         timeZone: 'Europe/Berlin'
       })
 
-      // Calculate time until post
       const minutesUntil = Math.round((scheduledTime.getTime() - now.getTime()) / (60 * 1000))
       const hoursUntil = Math.round(minutesUntil / 60)
 
@@ -203,7 +186,6 @@ export async function GET(request: Request) {
       try {
         console.log(`🤖 Generating fresh content for schedule ${typedSchedule.id}`)
 
-        // Generate fresh content NOW
         const generatedContent = await generateFreshContent(typedSchedule, fbGroup)
 
         if (!generatedContent) {
@@ -212,7 +194,6 @@ export async function GET(request: Request) {
 
         console.log(`✅ Content generated (${generatedContent.length} chars)`)
 
-        // Update schedule with generated content
         const { error: updateError } = await supabase
           .from('post_schedules')
           .update({
@@ -229,7 +210,6 @@ export async function GET(request: Request) {
 
         console.log(`📨 Sending email to ${typedSchedule.profiles.email}`)
 
-        // Send email with fresh content
         await resend.emails.send({
           from: process.env.FROM_EMAIL || 'UCG Social Scheduler <onboarding@resend.dev>',
           to: typedSchedule.profiles.email,
@@ -237,14 +217,17 @@ export async function GET(request: Request) {
           html: generateEmailHTML(typedSchedule, fbGroup, generatedContent, formattedTime, timeUntilText)
         })
 
-        // Mark reminder as sent
-        await supabase
+        const { error: reminderError } = await supabase
           .from('post_schedules')
           .update({ 
             reminder_sent: true,
             reminder_sent_at: new Date().toISOString()
           })
           .eq('id', typedSchedule.id)
+
+        if (reminderError) {
+          console.error('❌ Error marking reminder sent:', reminderError)
+        }
 
         console.log(`✅ Email sent successfully for schedule ${typedSchedule.id}`)
         return { 
@@ -287,14 +270,13 @@ export async function GET(request: Request) {
       { 
         success: false,
         error: 'Failed to process reminders',
-        details: String(error) 
+        details: error instanceof Error ? error.message : String(error)
       },
       { status: 500 }
     )
   }
 }
 
-// Generate fresh content using Claude API
 async function generateFreshContent(
   schedule: PostSchedule,
   groupData: FacebookGroup | null
@@ -302,7 +284,6 @@ async function generateFreshContent(
   try {
     const territory = groupData?.territories?.name || 'Unknown'
     
-    // Use the same prompt builder logic from your /api/posts/generate
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/posts/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -340,7 +321,6 @@ async function generateFreshContent(
   }
 }
 
-// Generate email HTML
 function generateEmailHTML(
   schedule: PostSchedule,
   groupData: FacebookGroup | null,
@@ -362,7 +342,6 @@ function generateEmailHTML(
       <td align="center" style="padding: 40px 0;">
         <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           
-          <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 20px 40px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); border-radius: 8px 8px 0 0;">
               <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold; text-align: center;">
@@ -374,11 +353,9 @@ function generateEmailHTML(
             </td>
           </tr>
 
-          <!-- Content -->
           <tr>
             <td style="padding: 40px;">
               
-              <!-- Greeting -->
               <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
                 Hi <strong>${schedule.profiles?.full_name}</strong>,
               </p>
@@ -387,7 +364,6 @@ function generateEmailHTML(
                 Your scheduled Facebook post is coming up <strong>${timeUntilText}</strong>! We just generated fresh content based on current context.
               </p>
 
-              <!-- Post Details Box -->
               <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; margin: 20px 0;">
                 <tr>
                   <td style="padding: 20px;">
@@ -408,7 +384,6 @@ function generateEmailHTML(
                 </tr>
               </table>
 
-              <!-- Fresh Content Badge -->
               <div style="background-color: #dcfce7; border-left: 4px solid #16a34a; padding: 16px; margin: 20px 0; border-radius: 4px;">
                 <p style="margin: 0; color: #166534; font-size: 14px; font-weight: 600;">
                   ✨ Fresh Content Generated
@@ -418,7 +393,6 @@ function generateEmailHTML(
                 </p>
               </div>
 
-              <!-- Instructions -->
               <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px;">
                 <p style="margin: 0; color: #1e40af; font-size: 14px; font-weight: 600;">
                   📝 How to Post:
@@ -430,7 +404,6 @@ function generateEmailHTML(
                 </ol>
               </div>
 
-              <!-- Post Content -->
               <p style="margin: 30px 0 10px 0; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase;">
                 📄 Your Post Content (Ready to Copy!)
               </p>
@@ -439,7 +412,6 @@ function generateEmailHTML(
                 <pre style="margin: 0; color: #111827; font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">${content}</pre>
               </div>
 
-              <!-- CTA Button -->
               <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
                 <tr>
                   <td align="center">
@@ -447,7 +419,7 @@ function generateEmailHTML(
                       ? `<a href="${groupData.group_url}" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
                           Go to Facebook Group →
                         </a>`
-                      : `<a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://ucg-social-scheduler.com'}/dashboard/posts" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                      : `<a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/posts" style="display: inline-block; padding: 16px 32px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
                           View Scheduled Posts →
                         </a>`
                     }
@@ -455,7 +427,6 @@ function generateEmailHTML(
                 </tr>
               </table>
 
-              <!-- Regenerate Option -->
               <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
                 <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
                   <strong>💡 Need different content?</strong> You can regenerate the post anytime from your dashboard before posting.
@@ -465,12 +436,11 @@ function generateEmailHTML(
             </td>
           </tr>
 
-          <!-- Footer -->
           <tr>
             <td style="padding: 20px 40px; background-color: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
               <p style="margin: 0; color: #6b7280; font-size: 12px; text-align: center; line-height: 1.6;">
                 This is an automated reminder from UCG Social Scheduler<br>
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://www.ucg-social-scheduler.com'}" style="color: #dc2626; text-decoration: none;">ucg-social-scheduler.com</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}" style="color: #dc2626; text-decoration: none;">Dashboard</a>
               </p>
             </td>
           </tr>
@@ -484,10 +454,8 @@ function generateEmailHTML(
   `
 }
 
-// Allow POST as well for testing
 export async function POST(request: Request) {
   return GET(request)
 }
 
-// Allow the route to run for up to 60 seconds
 export const maxDuration = 300

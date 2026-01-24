@@ -24,12 +24,15 @@ type VehicleData = {
   year: string
   price: string
   features: string
+  condition?: string
+  mileage?: string
 }
 
 type TestimonialData = {
   customerName: string
   vehicle: string
   experience: string
+  location?: string
 }
 
 function SchedulePageContent() {
@@ -44,11 +47,9 @@ function SchedulePageContent() {
   const [userTerritories, setUserTerritories] = useState<string[]>([])
   const [primaryTerritoryId, setPrimaryTerritoryId] = useState<string | null>(null)
   
-  // Check if we're in "edit mode" (redirected from edit page)
   const scheduleId = searchParams.get('scheduleId')
   const isEditMode = !!scheduleId
   
-  // Form state
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [postType, setPostType] = useState<PostType>('brand_awareness')
   const [scheduledDate, setScheduledDate] = useState('')
@@ -58,20 +59,21 @@ function SchedulePageContent() {
   const [targetAudience, setTargetAudience] = useState('')
   const [specialOffer, setSpecialOffer] = useState('')
   
-  // Vehicle data
   const [vehicleData, setVehicleData] = useState<VehicleData>({
     make: '',
     model: '',
     year: '',
     price: '',
-    features: ''
+    features: '',
+    condition: 'eu_spec',
+    mileage: ''
   })
   
-  // Testimonial data
   const [testimonialData, setTestimonialData] = useState<TestimonialData>({
     customerName: '',
     vehicle: '',
-    experience: ''
+    experience: '',
+    location: ''
   })
 
   useEffect(() => {
@@ -80,7 +82,6 @@ function SchedulePageContent() {
     loadUserTerritories()
   }, [])
 
-  // Pre-fill form from URL params after groups are loaded
   useEffect(() => {
     if (groups.length > 0 && searchParams.get('groupId')) {
       const groupId = searchParams.get('groupId')
@@ -89,9 +90,7 @@ function SchedulePageContent() {
       const notesParam = searchParams.get('notes')
       const metadataParam = searchParams.get('metadata')
       
-      if (groupId) {
-        setSelectedGroupId(groupId)
-      }
+      if (groupId) setSelectedGroupId(groupId)
       
       if (scheduledFor) {
         const date = new Date(scheduledFor)
@@ -99,34 +98,16 @@ function SchedulePageContent() {
         setScheduledTime(date.toTimeString().slice(0, 5))
       }
 
-      if (postTypeParam) {
-        setPostType(postTypeParam as PostType)
-      }
+      if (postTypeParam) setPostType(postTypeParam as PostType)
+      if (notesParam) setOccasion(notesParam)
 
-      if (notesParam) {
-        setOccasion(notesParam)
-      }
-
-      // Restore metadata
       if (metadataParam) {
         try {
           const metadata = JSON.parse(metadataParam)
-          
-          if (metadata.target_audience) {
-            setTargetAudience(metadata.target_audience)
-          }
-          
-          if (metadata.special_offer) {
-            setSpecialOffer(metadata.special_offer)
-          }
-          
-          if (metadata.vehicle_data) {
-            setVehicleData(metadata.vehicle_data)
-          }
-          
-          if (metadata.testimonial_data) {
-            setTestimonialData(metadata.testimonial_data)
-          }
+          if (metadata.target_audience) setTargetAudience(metadata.target_audience)
+          if (metadata.special_offer) setSpecialOffer(metadata.special_offer)
+          if (metadata.vehicle_data) setVehicleData(metadata.vehicle_data)
+          if (metadata.testimonial_data) setTestimonialData(metadata.testimonial_data)
         } catch (e) {
           console.error('Error parsing metadata:', e)
         }
@@ -235,10 +216,17 @@ function SchedulePageContent() {
 
       const scheduledFor = `${scheduledDate}T${scheduledTime}:00`
 
-      const aiMetadata = {
+      const saveData = {
+        user_id: user.id,
+        group_id: selectedGroupId,
+        territory_id: selectedGroup.territory_id,
+        scheduled_for: scheduledFor,
         post_type: postType,
-        special_context: occasion || null,
+        status: 'scheduled',
+        territory_violation_acknowledged: acknowledgeViolation,
+        violation_status: acknowledgeViolation ? 'unresolved' : null,
         target_audience: targetAudience || null,
+        special_context: occasion || null,
         special_offer: (postType === 'special_offer' && specialOffer) ? specialOffer : null,
         vehicle_data: (postType === 'vehicle_spotlight' || postType === 'special_offer') && vehicleData.make 
           ? vehicleData 
@@ -248,31 +236,16 @@ function SchedulePageContent() {
           : null
       }
 
-      const saveData = {
-        user_id: user.id,
-        group_id: selectedGroupId,
-        territory_id: selectedGroup.territory_id,
-        scheduled_for: scheduledFor,
-        post_type: postType,
-        status: 'pending',
-        territory_violation_acknowledged: acknowledgeViolation,
-        violation_status: acknowledgeViolation ? 'unresolved' : null,
-        is_ai_generated: true,
-        ai_metadata: aiMetadata,
-        notes: occasion || null,
-        generated_content: ''
-      }
-
       let result
       if (isEditMode && scheduleId) {
         result = await supabase
-          .from('scheduled_posts')
+          .from('post_schedules')
           .update(saveData)
           .eq('id', scheduleId)
           .select()
       } else {
         result = await supabase
-          .from('scheduled_posts')
+          .from('post_schedules')
           .insert(saveData)
           .select()
       }
@@ -328,7 +301,6 @@ function SchedulePageContent() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        {/* Select Group */}
         <div className="mb-8">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
             <Users className="w-5 h-5 text-blue-600" />
@@ -356,7 +328,6 @@ function SchedulePageContent() {
           )}
         </div>
 
-        {/* Post Type */}
         <div className="mb-8">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
             <Sparkles className="w-5 h-5 text-purple-600" />
@@ -386,7 +357,6 @@ function SchedulePageContent() {
           </div>
         </div>
 
-        {/* Special Offer Details */}
         {postType === 'special_offer' && (
           <div className="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -402,7 +372,6 @@ function SchedulePageContent() {
           </div>
         )}
 
-        {/* Vehicle Information */}
         {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
           <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
             <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
@@ -435,6 +404,21 @@ function SchedulePageContent() {
                 placeholder="Price (optional)"
                 className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               />
+              <input
+                type="text"
+                value={vehicleData.mileage}
+                onChange={(e) => setVehicleData({...vehicleData, mileage: e.target.value})}
+                placeholder="Mileage (optional)"
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={vehicleData.condition}
+                onChange={(e) => setVehicleData({...vehicleData, condition: e.target.value})}
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="eu_spec">EU Spec</option>
+                <option value="us_spec">US Spec</option>
+              </select>
             </div>
             <textarea
               value={vehicleData.features}
@@ -446,7 +430,6 @@ function SchedulePageContent() {
           </div>
         )}
 
-        {/* Testimonial Information */}
         {postType === 'testimonial_style' && (
           <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
             <h3 className="font-semibold text-gray-900 mb-4">⭐ Customer Story Details</h3>
@@ -465,6 +448,13 @@ function SchedulePageContent() {
                 placeholder="Vehicle purchased"
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               />
+              <input
+                type="text"
+                value={testimonialData.location || ''}
+                onChange={(e) => setTestimonialData({...testimonialData, location: e.target.value})}
+                placeholder="Location (optional)"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
               <textarea
                 value={testimonialData.experience}
                 onChange={(e) => setTestimonialData({...testimonialData, experience: e.target.value})}
@@ -476,7 +466,6 @@ function SchedulePageContent() {
           </div>
         )}
 
-        {/* Occasion */}
         <div className="mb-8">
           <label className="text-lg font-semibold text-gray-900 mb-3 block">
             Occasion or Theme (Optional)
@@ -490,7 +479,6 @@ function SchedulePageContent() {
           />
         </div>
 
-        {/* Target Audience */}
         <div className="mb-8">
           <label className="text-lg font-semibold text-gray-900 mb-3 block">
             Target Audience (Optional)
@@ -504,7 +492,6 @@ function SchedulePageContent() {
           />
         </div>
 
-        {/* Schedule Date & Time */}
         <div className="mb-8">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
             <Calendar className="w-5 h-5 text-green-600" />
@@ -548,7 +535,6 @@ function SchedulePageContent() {
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-4">
           <button
             onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
@@ -574,13 +560,12 @@ function SchedulePageContent() {
 
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
           <p className="text-sm text-blue-800">
-            <strong>Note:</strong> The AI will automatically generate content for this post shortly before the scheduled time. 
+            <strong>Note:</strong> The AI will automatically generate content for this post 2 hours before the scheduled time. 
             You'll receive a reminder email to review and post the content.
           </p>
         </div>
       </div>
 
-      {/* Territory Violation Modal */}
       {showViolationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">

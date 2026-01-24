@@ -1,5 +1,3 @@
-// app/dashboard/posts/page.tsx
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -39,7 +37,7 @@ export default function PostsDashboardPage() {
 
   useEffect(() => {
     loadSchedules()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadSchedules = async () => {
     try {
@@ -67,7 +65,6 @@ export default function PostsDashboardPage() {
 
       if (error) throw error
 
-      // Transform data to handle array returns from joins
       const transformed = data?.map(item => ({
         ...item,
         facebook_groups: Array.isArray(item.facebook_groups) ? item.facebook_groups[0] : item.facebook_groups,
@@ -261,7 +258,6 @@ export default function PostsDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Scheduled Posts</h1>
@@ -278,7 +274,6 @@ export default function PostsDashboardPage() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-yellow-500">
           <div className="flex items-center justify-between">
@@ -326,7 +321,6 @@ export default function PostsDashboardPage() {
         </div>
       </div>
 
-      {/* Schedules List */}
       {schedules.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-12 text-center">
           <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -481,7 +475,6 @@ export default function PostsDashboardPage() {
         </div>
       )}
 
-      {/* Content Modal */}
       {showContentModal && selectedSchedule && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">

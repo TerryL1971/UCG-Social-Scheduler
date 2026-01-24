@@ -3,10 +3,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Initialize Supabase with service role for cron jobs
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Service role bypasses RLS
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
     auth: {
       autoRefreshToken: false,
@@ -17,7 +16,6 @@ const supabase = createClient(
 
 export async function GET(request: Request) {
   try {
-    // Verify cron secret to prevent unauthorized access
     const authHeader = request.headers.get('authorization')
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,33 +23,36 @@ export async function GET(request: Request) {
 
     console.log('🤖 Starting auto-generation cron job...')
 
-    // Calculate time window: now to 2 hours from now
     const now = new Date()
     const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
 
     console.log(`⏰ Looking for posts scheduled between ${now.toISOString()} and ${twoHoursFromNow.toISOString()}`)
 
-    // Find posts that need content generation
     const { data: postsToGenerate, error: fetchError } = await supabase
-      .from('scheduled_posts')
+      .from('post_schedules')
       .select(`
         id,
         user_id,
         group_id,
         scheduled_for,
         post_type,
-        ai_metadata,
-        notes,
+        target_audience,
+        special_context,
+        vehicle_data,
+        testimonial_data,
+        special_offer,
         facebook_groups!inner (
           name,
+          group_type,
+          description,
           territory_id,
           territories (
             name
           )
         )
       `)
-      .is('generated_content', null) // Content not yet generated
-      .eq('status', 'pending')
+      .is('generated_content', null)
+      .eq('status', 'scheduled')
       .gte('scheduled_for', now.toISOString())
       .lte('scheduled_for', twoHoursFromNow.toISOString())
 
@@ -74,7 +75,6 @@ export async function GET(request: Request) {
     let successCount = 0
     let failCount = 0
 
-    // Generate content for each post
     for (const post of postsToGenerate) {
       try {
         console.log(`🎨 Generating content for post ${post.id}...`)
@@ -90,9 +90,6 @@ export async function GET(request: Request) {
             : groupData.territories?.name || 'Unknown'
         }
 
-        const aiMetadata = post.ai_metadata || {}
-
-        // Call the generation API
         const generateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/posts/generate`, {
           method: 'POST',
           headers: {
@@ -100,13 +97,15 @@ export async function GET(request: Request) {
           },
           body: JSON.stringify({
             groupName: groupData?.name || 'Unknown',
-            territory: territoryName || 'Unknown',
+            groupType: groupData?.group_type,
+            territory: territoryName,
+            groupDescription: groupData?.description,
             postType: post.post_type,
-            specialOffer: aiMetadata.special_offer,
-            targetAudience: aiMetadata.target_audience,
-            additionalContext: aiMetadata.special_context || post.notes,
-            vehicleData: aiMetadata.vehicle_data,
-            testimonialData: aiMetadata.testimonial_data
+            specialOffer: post.special_offer,
+            targetAudience: post.target_audience,
+            additionalContext: post.special_context,
+            vehicleData: post.vehicle_data,
+            testimonialData: post.testimonial_data
           })
         })
 
@@ -116,13 +115,12 @@ export async function GET(request: Request) {
           throw new Error(generateResult.details || 'Failed to generate content')
         }
 
-        // Update post with generated content
         const { error: updateError } = await supabase
-          .from('scheduled_posts')
+          .from('post_schedules')
           .update({
             generated_content: generateResult.content,
-            status: 'ready',
-            updated_at: new Date().toISOString()
+            status: 'content_ready',
+            content_generated_at: new Date().toISOString()
           })
           .eq('id', post.id)
 
@@ -142,13 +140,11 @@ export async function GET(request: Request) {
         console.error(`❌ Failed to generate content for post ${post.id}:`, error)
         failCount++
         
-        // Mark post as failed
         await supabase
-          .from('scheduled_posts')
+          .from('post_schedules')
           .update({
             status: 'failed',
-            notes: `Generation failed: ${error.message}`,
-            updated_at: new Date().toISOString()
+            special_context: `Generation failed: ${error.message}`
           })
           .eq('id', post.id)
 
