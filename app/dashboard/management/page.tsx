@@ -87,7 +87,7 @@ export default function ManagementDashboard() {
 
     // Fetch all posts
     const { data: allPosts, error: postsError } = await supabase
-      .from('scheduled_posts')
+      .from('post_schedules')
       .select('user_id, status, territory_violation_acknowledged')
     
     console.log('📝 All Posts:', allPosts, 'Error:', postsError)

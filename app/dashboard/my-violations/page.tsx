@@ -54,7 +54,7 @@ export default function MyViolationsPage() {
       if (!user) return
 
       const { data } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select(`
           id,
           scheduled_for,
@@ -100,7 +100,7 @@ export default function MyViolationsPage() {
     setActionLoading(violationId)
     try {
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .update({
           violation_status: 'authorization_requested',
           authorization_requested_at: new Date().toISOString()
@@ -129,7 +129,7 @@ export default function MyViolationsPage() {
     setActionLoading(violationId)
     try {
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .update({
           violation_status: 'justified',
           violation_justification: justification
@@ -157,7 +157,7 @@ export default function MyViolationsPage() {
     setActionLoading(violationId)
     try {
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .delete()
         .eq('id', violationId)
 
@@ -181,7 +181,7 @@ export default function MyViolationsPage() {
 
       // Get the full post data including ai_metadata
       const { data: postData, error: fetchError } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select('*, facebook_groups(name, territories(name))')
         .eq('id', violationId)
         .single()
@@ -221,7 +221,7 @@ export default function MyViolationsPage() {
 
       // Update post with generated content
       const { error: updateError } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .update({
           generated_content: result.content,
           status: 'ready'

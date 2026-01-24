@@ -26,7 +26,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
 
       // Fetch the post to get all its parameters
       const { data: postData, error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select('*')
         .eq('id', resolvedParams.id)
         .eq('user_id', user.id)

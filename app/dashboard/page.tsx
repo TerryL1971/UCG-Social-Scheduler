@@ -98,7 +98,7 @@ export default function DashboardPage() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const { count: postedTodayCount } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .eq('status', 'posted')
@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
       // Fetch upcoming posts
       const { data: posts } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select('*, facebook_groups(name), territories:facebook_groups(territories(name))')
         .eq('user_id', user.id)
         .in('status', ['pending', 'ready'])

@@ -63,7 +63,7 @@ export default function ViewPostPage({ params }: { params: Promise<{ id: string 
       }
 
       const { data, error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select(`
           *,
           facebook_groups (
@@ -122,7 +122,7 @@ export default function ViewPostPage({ params }: { params: Promise<{ id: string 
     setMarking(true)
     try {
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .update({
           status: 'posted',
           posted_at: new Date().toISOString()
@@ -150,7 +150,7 @@ export default function ViewPostPage({ params }: { params: Promise<{ id: string 
     setDeleting(true)
     try {
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .delete()
         .eq('id', post.id)
 

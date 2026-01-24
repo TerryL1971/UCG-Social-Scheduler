@@ -74,7 +74,7 @@ export default function ViolationsPage() {
 
       // Fetch all violations from the dealership (or all if owner)
       const query = supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .select(`
           id,
           user_id,
@@ -164,7 +164,7 @@ export default function ViolationsPage() {
       if (!user) return
 
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .update({
           violation_status: 'authorized',
           authorization_granted_by: user.id,
@@ -192,7 +192,7 @@ export default function ViolationsPage() {
     setActionLoading(violationId)
     try {
       const { error } = await supabase
-        .from('scheduled_posts')
+        .from('post_schedules')
         .update({
           violation_status: 'denied',
           authorization_requested_at: null
