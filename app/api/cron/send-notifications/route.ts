@@ -33,23 +33,6 @@ interface Profile {
   whatsapp?: string
 }
 
-interface VehicleData {
-  make: string
-  model: string
-  year: string
-  price?: string
-  features?: string
-  condition?: string
-  mileage?: string
-}
-
-interface TestimonialData {
-  customerName?: string
-  vehicle: string
-  experience?: string
-  location?: string
-}
-
 interface PostSchedule {
   id: string
   scheduled_for: string
@@ -59,8 +42,6 @@ interface PostSchedule {
   post_type: string
   target_audience?: string
   special_context?: string
-  vehicle_data?: VehicleData
-  testimonial_data?: TestimonialData
   special_offer?: string
   generated_content?: string
   facebook_groups: FacebookGroup | null
@@ -77,9 +58,12 @@ export async function GET(request: Request) {
 
     const now = new Date()
     const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    console.log(`⏰ [${now.toISOString()}] Checking for schedules between ${now.toISOString()} and ${twoHoursFromNow.toISOString()}`)
+    console.log(`⏰ [${now.toISOString()}] Checking for schedules`)
 
+    // FIXED: Send reminders for ALL content_ready posts that haven't been reminded yet
+    // This includes overdue posts too!
     const { data: schedules, error } = await supabase
       .from('post_schedules')
       .select(`
@@ -91,24 +75,23 @@ export async function GET(request: Request) {
         post_type,
         target_audience,
         special_context,
-        vehicle_data,
-        testimonial_data,
         special_offer,
         generated_content,
         facebook_groups!inner(name, group_url, group_type, description, territories(name)),
         profiles!inner(full_name, email, whatsapp)
       `)
       .in('status', ['scheduled', 'content_ready'])
-      .gte('scheduled_for', now.toISOString())
+      .gte('scheduled_for', sevenDaysAgo.toISOString())
       .lte('scheduled_for', twoHoursFromNow.toISOString())
       .or('reminder_sent.is.null,reminder_sent.eq.false')
+      .not('generated_content', 'is', null)
 
     if (error) {
       console.error('❌ Database error:', error)
       throw error
     }
 
-    console.log(`📧 Found ${schedules?.length || 0} schedules needing reminders`)
+    console.log(`📧 Found ${schedules?.length || 0} schedules with content ready for reminders`)
 
     if (!schedules || schedules.length === 0) {
       return NextResponse.json({ 
@@ -136,8 +119,6 @@ export async function GET(request: Request) {
         post_type: schedule.post_type,
         target_audience: schedule.target_audience,
         special_context: schedule.special_context,
-        vehicle_data: schedule.vehicle_data,
-        testimonial_data: schedule.testimonial_data,
         special_offer: schedule.special_offer,
         generated_content: schedule.generated_content,
         facebook_groups: rawGroup ? {
@@ -157,6 +138,11 @@ export async function GET(request: Request) {
         return null
       }
 
+      if (!typedSchedule.generated_content) {
+        console.log(`⚠️ No content for schedule ${typedSchedule.id}`)
+        return null
+      }
+
       const fbGroup = typedSchedule.facebook_groups
       const scheduledTime = new Date(typedSchedule.scheduled_for)
       const formattedTime = scheduledTime.toLocaleString('en-US', {
@@ -173,7 +159,19 @@ export async function GET(request: Request) {
       const hoursUntil = Math.round(minutesUntil / 60)
 
       let timeUntilText = ''
-      if (hoursUntil >= 2) {
+      if (scheduledTime < now) {
+        const minutesOverdue = Math.abs(minutesUntil)
+        const hoursOverdue = Math.round(minutesOverdue / 60)
+        const daysOverdue = Math.round(hoursOverdue / 24)
+        
+        if (daysOverdue >= 1) {
+          timeUntilText = `${daysOverdue} day${daysOverdue > 1 ? 's' : ''} ago (OVERDUE!)`
+        } else if (hoursOverdue >= 1) {
+          timeUntilText = `${hoursOverdue} hour${hoursOverdue > 1 ? 's' : ''} ago (OVERDUE!)`
+        } else {
+          timeUntilText = `${minutesOverdue} minute${minutesOverdue > 1 ? 's' : ''} ago (OVERDUE!)`
+        }
+      } else if (hoursUntil >= 2) {
         timeUntilText = `in ${hoursUntil} hours`
       } else if (minutesUntil >= 60) {
         timeUntilText = 'in about 1 hour'
@@ -184,44 +182,20 @@ export async function GET(request: Request) {
       }
 
       try {
-        console.log(`🤖 Generating fresh content for schedule ${typedSchedule.id}`)
-
-        const generatedContent = await generateFreshContent(typedSchedule, fbGroup)
-
-        if (!generatedContent) {
-          throw new Error('Failed to generate content')
-        }
-
-        console.log(`✅ Content generated (${generatedContent.length} chars)`)
-
-        const { error: updateError } = await supabase
-          .from('post_schedules')
-          .update({
-            generated_content: generatedContent,
-            content_generated_at: new Date().toISOString(),
-            status: 'content_ready'
-          })
-          .eq('id', typedSchedule.id)
-
-        if (updateError) {
-          console.error('❌ Error updating schedule with content:', updateError)
-          throw updateError
-        }
-
-        console.log(`📨 Sending email to ${typedSchedule.profiles.email}`)
+        console.log(`📨 Sending email to ${typedSchedule.profiles.email} for schedule ${typedSchedule.id}`)
 
         await resend.emails.send({
           from: process.env.FROM_EMAIL || 'UCG Social Scheduler <onboarding@resend.dev>',
           to: typedSchedule.profiles.email,
           subject: `⏰ Time to Post! - ${fbGroup?.name || 'your group'}`,
-          html: generateEmailHTML(typedSchedule, fbGroup, generatedContent, formattedTime, timeUntilText)
+          html: generateEmailHTML(typedSchedule, fbGroup, typedSchedule.generated_content, formattedTime, timeUntilText)
         })
 
         const { error: reminderError } = await supabase
           .from('post_schedules')
           .update({ 
             reminder_sent: true,
-            reminder_sent_at: new Date().toISOString()
+            updated_at: new Date().toISOString()
           })
           .eq('id', typedSchedule.id)
 
@@ -277,50 +251,6 @@ export async function GET(request: Request) {
   }
 }
 
-async function generateFreshContent(
-  schedule: PostSchedule,
-  groupData: FacebookGroup | null
-): Promise<string | null> {
-  try {
-    const territory = groupData?.territories?.name || 'Unknown'
-    
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/posts/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        groupName: groupData?.name || 'Unknown Group',
-        groupType: groupData?.group_type,
-        territory: territory,
-        groupDescription: groupData?.description,
-        postType: schedule.post_type,
-        specialOffer: schedule.special_offer,
-        targetAudience: schedule.target_audience,
-        additionalContext: schedule.special_context,
-        vehicleData: schedule.vehicle_data,
-        testimonialData: schedule.testimonial_data,
-        userProfile: {
-          full_name: schedule.profiles?.full_name || 'UCG Team',
-          email: schedule.profiles?.email,
-          whatsapp: schedule.profiles?.whatsapp
-        }
-      })
-    })
-
-    const data = await response.json()
-
-    if (!response.ok || !data.content) {
-      console.error('Failed to generate content:', data)
-      return null
-    }
-
-    return data.content
-
-  } catch (error) {
-    console.error('Error generating content:', error)
-    return null
-  }
-}
-
 function generateEmailHTML(
   schedule: PostSchedule,
   groupData: FacebookGroup | null,
@@ -348,7 +278,7 @@ function generateEmailHTML(
                 ⏰ Time to Post!
               </h1>
               <p style="margin: 10px 0 0 0; color: #fee2e2; font-size: 16px; text-align: center;">
-                Fresh content generated just for you
+                Fresh content ready for you
               </p>
             </td>
           </tr>
@@ -361,7 +291,7 @@ function generateEmailHTML(
               </p>
 
               <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
-                Your scheduled Facebook post is coming up <strong>${timeUntilText}</strong>! We just generated fresh content based on current context.
+                Your scheduled Facebook post ${timeUntilText.includes('OVERDUE') ? 'was scheduled' : 'is coming up'} <strong>${timeUntilText}</strong>!
               </p>
 
               <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb; margin: 20px 0;">
@@ -386,10 +316,10 @@ function generateEmailHTML(
 
               <div style="background-color: #dcfce7; border-left: 4px solid #16a34a; padding: 16px; margin: 20px 0; border-radius: 4px;">
                 <p style="margin: 0; color: #166534; font-size: 14px; font-weight: 600;">
-                  ✨ Fresh Content Generated
+                  ✨ Fresh Content Ready
                 </p>
                 <p style="margin: 8px 0 0 0; color: #166534; font-size: 13px;">
-                  This content was generated just now with current context and timely information.
+                  Your AI-generated post content is ready to copy and post!
                 </p>
               </div>
 

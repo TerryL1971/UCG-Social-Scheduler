@@ -9,7 +9,6 @@ const anthropic = new Anthropic({
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate API key exists
     if (!process.env.ANTHROPIC_API_KEY) {
       console.error('ANTHROPIC_API_KEY is not set')
       return NextResponse.json(
@@ -36,7 +35,6 @@ export async function POST(request: NextRequest) {
       userProfile
     } = body
 
-    // Validate required fields
     if (!groupName || !territory) {
       return NextResponse.json(
         { error: 'Missing required fields: groupName and territory' },
@@ -44,7 +42,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build the AI prompt based on group context
     const prompt = buildPrompt({
       groupName,
       groupType,
@@ -64,13 +61,13 @@ export async function POST(request: NextRequest) {
       max_tokens: 4096,
       promptLength: prompt.length,
       postType,
-      territory
+      territory,
+      hasVehicleData: !!vehicleData?.make
     })
 
-    // Generate post using Claude
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096, // Increased for longer Brand Awareness posts
+      max_tokens: 4096,
       messages: [
         {
           role: 'user',
@@ -79,7 +76,6 @@ export async function POST(request: NextRequest) {
       ]
     })
 
-    // Extract the generated text
     const generatedContent = message.content[0].type === 'text' 
       ? message.content[0].text 
       : ''
@@ -99,16 +95,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('AI Generation Error:', error)
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      raw: error
-    })
     return NextResponse.json(
       { 
         error: 'Failed to generate post', 
-        details: error instanceof Error ? error.message : 'Unknown error',
-        type: error instanceof Error ? error.constructor.name : typeof error
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )
@@ -159,15 +149,29 @@ function buildPrompt(params: {
     userProfile
   } = params
 
-  // Determine if this is Stuttgart Brand Awareness (needs Nick + Terry)
+  // CRITICAL: Add UCG context to EVERY prompt as safety fallback
+  let basePrompt = `🚗 CRITICAL BUSINESS CONTEXT - READ THIS FIRST:
+
+Company: Used Car Guys (UCG) / Used Car Guys GmbH
+Business: PRE-OWNED VEHICLE DEALERSHIP serving US military personnel in Germany
+What we sell: CARS - Used cars, pre-owned vehicles, automobiles
+What we DO NOT sell: Real estate, houses, apartments, homes, or any property
+Locations: Stuttgart (Schönaich near Panzer Kaserne) and Ramstein/KMC area
+Address: Robert-Bosch-Straße 6, 71101 Schönaich, Germany
+Website: www.usedcarguys.net
+
+⚠️ ABSOLUTE RULE: You are writing about CARS and VEHICLES ONLY. Never mention houses, homes, real estate, apartments, or property buying. If you catch yourself writing about anything other than automobiles, STOP and rewrite about cars.
+
+---
+
+`
+
   const isStuttgartBrandAwareness = territory.toLowerCase().includes('stuttgart') && postType === 'brand_awareness'
   
-  // Extract salesperson info from user profile
   const salesPerson = userProfile?.full_name || 'our team'
   const salesWhatsApp = userProfile?.whatsapp || ''
   const salesEmail = userProfile?.email || ''
   
-  // Leadership team (Nick + Terry for Stuttgart Brand Awareness only)
   const nickMorley = {
     name: 'Nick Morley',
     whatsapp: '+49 172 712 9046'
@@ -178,19 +182,15 @@ function buildPrompt(params: {
     email: 'terry@usedcarguys.net'
   }
 
-  let basePrompt = ''
-
-  // ===========================================
-  // BRAND AWARENESS POST (Very Different!)
-  // ===========================================
+  // BRAND AWARENESS POST
   if (postType === 'brand_awareness') {
-    basePrompt = `You are writing a BRAND AWARENESS Facebook post for Used Car Guys (UCG), a car dealership serving US military personnel in Germany.
+    basePrompt += `You are writing a BRAND AWARENESS Facebook post for Used Car Guys (UCG), a CAR DEALERSHIP serving US military personnel in Germany.
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
 ${groupType ? `GROUP TYPE: ${groupType}` : ''}
 
-⚠️ CRITICAL: This is a BRAND AWARENESS post - NOT a vehicle ad!
+⚠️ CRITICAL: This is a BRAND AWARENESS post about a CAR DEALERSHIP - NOT about real estate or housing!
 
 📏 LENGTH REQUIREMENT:
 - MINIMUM 1,500 words (aim for 2,000-3,000+ words)
@@ -206,6 +206,7 @@ ${groupType ? `GROUP TYPE: ${groupType}` : ''}
 
 📝 TONE & VOICE:
 - Warm, personal, community-focused (NOT salesy!)
+- Excited and confident about serving military families  
 - Like talking to friends and neighbors
 - Enthusiastic and genuine
 - Focus on RELATIONSHIPS first, cars second
@@ -226,41 +227,38 @@ Include a meaningful quote about relationships, community, or service. Example:
 3️⃣ COMMUNITY INVOLVEMENT SECTION:
 "HERE'S HOW UCG ${territory.toUpperCase()} INVESTED IN YOUR COMMUNITY IN [CURRENT MONTH]! 😊🎉"
 
-Share 5-8 specific stories/events:
-- Community events hosted
-- Classes or activities (dance, fitness, educational)
-- Local business support
-- Scholarship programs
-- Fun mascot/character updates (like Stewie the sloth)
+Share 5-8 specific stories/events about the CAR DEALERSHIP:
+- Community events hosted at the dealership
+- Classes or activities held at UCG
+- Supporting local businesses at the dealership
+- Scholarship programs for military families
+- Fun mascot updates (like Stewie the sloth - UCG's mascot)
 - Charitable activities
-- Military family support
+- Military family support initiatives
+- Car-related events and gatherings
 
 Each story should be 2-3 sentences with emojis. Be creative and heartfelt!
 
-Examples:
-"🎉 We hosted a Celebration of Life Event for a beloved member of the USAG ${territory} Community in our FREE event space. 💚"
-"🕺💃 Line Dance Classes were in full swing in our FREE event space. Multiple classes were held and more to come! ✨"
-"📚⭐ Our John S. Sweeney Scholarship is now in full swing as participants' videos are posted for YOUR vote! 🏆"
-
 4️⃣ LOOKING AHEAD:
-"I wonder what [NEXT MONTH] will hold? Follow us on Used Car Guys ${territory} and find out more about our upcoming events and don't forget to check out our outstanding inventory! 🚗🎯"
+"I wonder what [NEXT MONTH] will hold? Follow us on Used Car Guys ${territory} and find out more about our upcoming events and don't forget to check out our outstanding inventory of vehicles! 🚗🎯"
 
 5️⃣ WHAT WE OFFER SECTION:
 "We have soooo much to offer you. Check this out: 😊"
 1. FREE Event Space for the USAG Community
-2. We support the Home Based Businesses
+2. We support the Home Based Businesses  
 3. The John S. Sweeney Memorial Scholarship only for the USAG
 4. Check out the HBB Little Shops located here at UCG
+5. Quality pre-owned vehicles for military families
 
 6️⃣ VEHICLE INVENTORY TRANSITION:
 "Looking for your next car? At Used Car Guys, we're proud to offer a wide selection of top-quality pre-owned vehicles at prices you'll love! 🚗💙"
 
-7️⃣ WHY CHOOSE US:
+7️⃣ WHY CHOOSE US FOR YOUR NEXT VEHICLE:
 "💡 Why Choose Us?"
-✅ Quality Assurance – Every car undergoes a thorough inspection to ensure you're getting the very best.
-✅ Diverse Inventory – Both U.S. and E.U. Spec vehicles, from sporty sedans to family-friendly SUVs, we have the perfect car to fit your needs.
-✅ Guaranteed Buy Back Offer– Come back to us when you are ready to sell!
-✅ Expert Guidance – Our friendly team${isStuttgartBrandAwareness ? `, featuring ${nickMorley.name} and ${terryLombardi.name},` : ''} are here to guide you every step of the way—no pressure, just support!
+✅ Quality Assurance – Every car undergoes a thorough inspection
+✅ Diverse Inventory – Both U.S. and E.U. Spec vehicles
+✅ Guaranteed Buy Back Offer– Come back to us when you're ready to sell!
+✅ Expert Guidance – Our friendly team${isStuttgartBrandAwareness ? `, featuring ${nickMorley.name} and ${terryLombardi.name},` : ''} are here to guide you every step of the way
 ✅ Check Our Google Reviews - Nearly 200 five-star reviews from the USAG ${territory} community!
 
 8️⃣ VISIT US SECTION:
@@ -284,7 +282,7 @@ ${salesEmail ? `📧 Email: ${salesEmail}` : ''}`
 }
 
 1️⃣1️⃣ CLOSING CTA:
-"👍 Don't forget to like our page to stay updated on the latest arrivals, exclusive offers, and more!"
+"👍 Don't forget to like our page to stay updated on the latest vehicle arrivals, exclusive offers, and more!"
 "💚 Your next car is waiting for you at The Used Car Guys ${territory} Showroom. Come see us today!${territory.toLowerCase().includes('stuttgart') ? " Don't forget to ask us about our low priced auto insurance with AmericanAutoNation and our extended warranty program. 💙✨" : ' 🚗✨'}"
 
 ${targetAudience ? `\n🎯 TARGET AUDIENCE: ${targetAudience}` : ''}
@@ -293,267 +291,162 @@ ${additionalContext ? `\n📝 ADDITIONAL CONTEXT: ${additionalContext}` : ''}
 🎨 REMEMBER: 
 - Use 50+ emojis throughout
 - 1,500+ words minimum
-- Be warm, personal, community-focused
-- Tell stories and build relationships
-- This is about UCG being part of the community, not just selling cars!`
+- This is about UCG CAR DEALERSHIP being part of the community
+- NEVER mention houses, homes, or real estate!`
   }
 
-  // ===========================================
   // VEHICLE SPOTLIGHT POST
-  // ===========================================
-  else if (postType === 'vehicle_spotlight' && vehicleData) {
-    basePrompt = `You are writing a VEHICLE SPOTLIGHT Facebook post for Used Car Guys (UCG).
+  else if (postType === 'vehicle_spotlight') {
+    // Check if vehicle data is missing
+    if (!vehicleData || !vehicleData.make) {
+      basePrompt += `You are writing a VEHICLE SPOTLIGHT Facebook post for Used Car Guys (UCG), a CAR DEALERSHIP.
+
+⚠️ IMPORTANT: No specific vehicle data was provided, so write about UCG's GENERAL INVENTORY of quality pre-owned vehicles.
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
-${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
+
+📏 LENGTH: 800-1,200 words
+🎨 EMOJI USAGE: 30-40 emojis (🚗 ✨ 💙 🔥 ⚡ 💪 🎯 ⭐ 🙌)
+
+📝 CONTENT FOCUS:
+Write an exciting post about:
+- UCG's diverse selection of pre-owned vehicles
+- Both US Spec and EU Spec vehicles available
+- Quality inspection process
+- Military-friendly pricing and buy-back guarantee
+- Invite them to visit showroom to see current inventory
+- Highlight that new vehicles arrive regularly
+
+Include contact info:
+"📞 Contact ${salesPerson}:"
+"📱 ${salesWhatsApp}"
+${salesEmail ? `"📧 ${salesEmail}"` : ''}
+"Visit us at Robert-Bosch-Straße 6, 71101 Schönaich 🚗"
+
+Make it enthusiastic and exciting about the variety of vehicles available!`
+    } else {
+      basePrompt += `You are writing a VEHICLE SPOTLIGHT Facebook post for Used Car Guys (UCG), a CAR DEALERSHIP.
+
+TARGET GROUP: ${groupName}
+TERRITORY: ${territory}
 
 VEHICLE DETAILS:
 - Make/Model: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model}
 ${vehicleData.price ? `- Price: ${vehicleData.price}` : '- Price: Contact for pricing'}
 ${vehicleData.mileage ? `- Mileage: ${vehicleData.mileage}` : ''}
-- Condition: ${vehicleData.condition}
+- Condition: ${vehicleData.condition || 'Excellent'}
 ${vehicleData.features ? `- Features: ${vehicleData.features}` : ''}
 
-📏 LENGTH: 800-1,200 words (shorter than Brand Awareness, but still detailed!)
+📏 LENGTH: 800-1,200 words
+🎨 EMOJI USAGE: 30-40 emojis (🚗 ✨ 💙 🔥 ⚡ 💪 🎯 ⭐ 🙌)
 
-🎨 EMOJI USAGE: 30-40 emojis throughout (🚗 ✨ 💙 🔥 ⚡ 💪 🎯 ⭐ 🙌 etc.)
+📝 STRUCTURE:
 
-📝 STRUCTURE - FOLLOW THIS:
-
-1️⃣ OPENING (Eye-catching):
+1️⃣ OPENING:
 "🚗✨ Check out this AMAZING vehicle! ✨🚗"
 "📱 Call/WhatsApp ${salesPerson}: ${salesWhatsApp}"
 ${salesEmail ? `"📧 Email: ${salesEmail}"` : ''}
 "💰 Payments available! 🎉"
 
 2️⃣ EXCITEMENT INTRO:
-"Get ready to fall in LOVE with your next ride! 🥳💙💙 This incredible ${vehicleData.year} ${vehicleData.make} ${vehicleData.model} is waiting for YOU and it's absolutely PERFECT for military life in Germany! 🇺🇸✨🚗"
+"Get ready to fall in LOVE with your next ride! This incredible ${vehicleData.year} ${vehicleData.make} ${vehicleData.model} is perfect for military life in Germany!"
 
 3️⃣ FEATURES SECTION (15-20 bullet points with emojis):
 "FEATURES:"
-List out features with relevant emojis. Examples:
-* 🚗 Smooth and reliable performance ✨
-* ⚡ Fuel efficient for those European gas prices 💙
-* 🔒 Advanced safety features 🛡️
-* 🌟 Comfortable interior seating 💫
-* 🎵 Premium sound system 🔥
-* ❄️ Climate control for all seasons ✨
-${vehicleData.features ? `Include these specific features: ${vehicleData.features}` : ''}
+List vehicle features with emojis
 
 4️⃣ KEY SPECS:
 "KEY SPECS:"
-* 📏 Miles: ${vehicleData.mileage || 'Contact for details'} ✨
-* ⚙️ Engine: High-performance and reliable 🔥
-* ✅ ${vehicleData.condition === 'eu_spec' ? 'EU Spec With Buy Back Guarantee' : 'US Spec Available'} 🎯
+* 📏 Miles: ${vehicleData.mileage || 'Contact for details'}
+* ✅ ${vehicleData.condition === 'eu_spec' ? 'EU Spec With Buy Back Guarantee' : 'US Spec Available'}
 
 5️⃣ PRICING:
-"💵 Price: ${vehicleData.price || 'Contact for pricing or payments available'} + 1yr warranty! 🎉✨"
+"💵 Price: ${vehicleData.price || 'Contact for pricing'} + 1yr warranty! 🎉✨"
 
-6️⃣ ENTHUSIASM SECTION:
-"This STUNNING vehicle is exactly what you've been searching for! 🌟💙💙 Whether you're commuting to base, exploring the beautiful German countryside, or taking weekend trips around Europe, this car will be your perfect companion! 🚗✨🎉"
+6️⃣ WHY CHOOSE US:
+✅ Serving Military since 2012
+✅ Buy Back Guarantee
+✅ 2yr warranty available
+✅ Military Inspection Guaranteed
 
-7️⃣ MILITARY FOCUS:
-"We know how important it is to have a dependable vehicle when you're stationed overseas! 🇺🇸🌍 That's why we've carefully inspected every detail to ensure you're getting the BEST possible car for your needs! 💪👏"
-
-8️⃣ URGENCY:
-"Don't let this INCREDIBLE opportunity slip away! 🎯🔥 This amazing vehicle won't last long in our lot, and we want to make sure YOU get the chance to drive it home today! 🏠🚗💙"
-
-9️⃣ WHY CHOOSE US:
-"WHY CHOOSE US: 🌟"
-✅ Serving Military since 2012 🇺🇸
-✅ Buy Back Guarantee 🤝💙
-✅ 2yr warranty available 🛡️
-✅ We guide you through everything 👥✨
-✅ Top trade-in prices 💰🚗
-✅ Buy It Back When You Leave ✈️
-✅ Military Inspection Guaranteed 🔍✅
-✅ No SOFA Status needed 📋
-"Closest Thing to Leasing Overseas" 🌍✨
-
-🔟 CONTACT CTA:
-"Ready to drive your DREAM car? 🎉"
-"📞 Contact ${salesPerson}:"
-"📱 ${salesWhatsApp}"
-${salesEmail ? `"📧 ${salesEmail}"` : ''}
-"Visit us at Robert-Bosch-Straße 6, 71101 Schönaich${territory.toLowerCase().includes('stuttgart') ? ' (right near Panzer Kaserne!)' : ''} 🚗"
-"Come see us today! 🚗✨🎉"
-
-🎨 TONE: Enthusiastic, exciting, lots of exclamation points! Make them LOVE this car!`
-  }
-
-  // ===========================================
-  // SPECIAL OFFER POST
-  // ===========================================
-  else if (postType === 'special_offer') {
-    basePrompt = `You are writing a SPECIAL OFFER Facebook post for Used Car Guys (UCG).
-
-TARGET GROUP: ${groupName}
-TERRITORY: ${territory}
-${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
-OFFER: ${specialOffer || 'Special military pricing and promotions available'}
-${vehicleData?.make ? `FEATURED VEHICLE: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : ''}
-
-📏 LENGTH: 600-900 words
-
-🎨 EMOJI USAGE: 25-35 emojis (🎉 🔥 💥 ⏰ 💰 🚗 ✨ 💙 ⭐ etc.)
-
-📝 STRUCTURE:
-
-1️⃣ OPENING (Exciting):
-"🎉🔥 SPECIAL OFFER ALERT! 🔥🎉"
-"⏰ Limited Time Only! ⏰"
-
-2️⃣ OFFER DETAILS:
-"${specialOffer}"
-Make it clear, exciting, and urgent! Use lots of emojis!
-
-3️⃣ FEATURED VEHICLE (if applicable):
-${vehicleData?.make ? `Highlight the ${vehicleData.year} ${vehicleData.make} ${vehicleData.model} with features and price` : 'Highlight available inventory'}
-
-4️⃣ BENEFITS:
-"✅ Why Act NOW:"
-- List 5-6 benefits of this offer
-- Use check marks and emojis
-- Create urgency
-
-5️⃣ CONTACT:
+7️⃣ CONTACT:
 "📞 Contact ${salesPerson}:"
 "📱 ${salesWhatsApp}"
 ${salesEmail ? `"📧 ${salesEmail}"` : ''}
 "Visit us at Robert-Bosch-Straße 6, 71101 Schönaich 🚗"
 
-6️⃣ URGENCY CTA:
-"Don't miss out! This offer won't last long! 🔥⏰"
-
-🎨 TONE: Urgent, exciting, create FOMO (fear of missing out)!`
+🎨 TONE: Enthusiastic, exciting, confident!`
+    }
   }
 
-  // ===========================================
-  // COMMUNITY POST
-  // ===========================================
-  else if (postType === 'community') {
-    basePrompt = `You are writing a COMMUNITY FOCUS Facebook post for Used Car Guys (UCG).
+  // SPECIAL OFFER POST
+  else if (postType === 'special_offer') {
+    basePrompt += `You are writing a SPECIAL OFFER post for Used Car Guys (UCG) CAR DEALERSHIP.
 
 TARGET GROUP: ${groupName}
 TERRITORY: ${territory}
-${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
+OFFER: ${specialOffer || 'Special military pricing and promotions available on quality pre-owned vehicles'}
+
+📏 LENGTH: 600-900 words
+🎨 EMOJI USAGE: 25-35 emojis (🎉 🔥 💥 ⏰ 💰 🚗 ✨)
+
+Make it exciting and urgent about the vehicle offer!`
+  }
+
+  // COMMUNITY POST
+  else if (postType === 'community') {
+    basePrompt += `You are writing a COMMUNITY FOCUS post for Used Car Guys (UCG) CAR DEALERSHIP.
+
+TARGET GROUP: ${groupName}
+TERRITORY: ${territory}
 
 📏 LENGTH: 800-1,200 words
+🎨 EMOJI USAGE: 30-40 emojis
 
-🎨 EMOJI USAGE: 30-40 emojis (❤️ 💙 💚 🤗 🙌 🎉 ⭐ 🏆 etc.)
-
-📝 FOCUS:
-- Highlight UCG's commitment to the military community
-- Share stories of helping military families
-- Emphasize community partnerships and support
-- Show appreciation for service members
-- Include events, scholarships, or community programs
-
-📝 STRUCTURE:
-
-1️⃣ OPENING:
-"❤️ Thank you to our ${territory} military community! ❤️"
-
-2️⃣ COMMUNITY COMMITMENT:
-- Share UCG's mission to serve military families
-- Tell specific stories of community impact
-- Mention events, programs, scholarships
-
-3️⃣ WHY UCG CARES:
-- Emphasize understanding military life
-- Talk about challenges of overseas service
-- Show how UCG supports through it all
-
-4️⃣ INVITATION:
-- Invite community to events
-- Encourage them to stop by
-- Build relationships
-
-5️⃣ CONTACT:
-"📞 ${salesPerson}: ${salesWhatsApp}"
-${salesEmail ? `"📧 ${salesEmail}"` : ''}
-
-🎨 TONE: Warm, appreciative, community-focused, heartfelt!`
+Focus on UCG's commitment to the military community and how the dealership supports military families.`
   }
 
-  // ===========================================
-  // TESTIMONIAL/SUCCESS STORY POST
-  // ===========================================
+  // TESTIMONIAL POST
   else if (postType === 'testimonial_style' && testimonialData) {
-    basePrompt = `You are writing a CUSTOMER SUCCESS STORY Facebook post for Used Car Guys (UCG).
+    basePrompt += `You are writing a CUSTOMER SUCCESS STORY for Used Car Guys (UCG) CAR DEALERSHIP.
 
-TARGET GROUP: ${groupName}
-TERRITORY: ${territory}
-${groupDescription ? `GROUP CONTEXT: ${groupDescription}` : ''}
-
-CUSTOMER STORY:
+Customer bought a VEHICLE from UCG (not a house!):
 - Customer: ${testimonialData.customerName || 'A military family'}
 - Vehicle: ${testimonialData.vehicle}
-${testimonialData.location ? `- Location: ${testimonialData.location}` : ''}
-${testimonialData.experience ? `- Their Story: ${testimonialData.experience}` : ''}
 
 📏 LENGTH: 600-800 words
+🎨 EMOJI USAGE: 25-30 emojis
 
-🎨 EMOJI USAGE: 25-30 emojis (🎉 ⭐ 💙 🙌 😊 🚗 ✨ 🏆 etc.)
-
-📝 STRUCTURE:
-
-1️⃣ OPENING:
-"🎉⭐ SUCCESS STORY ALERT! ⭐🎉"
-
-2️⃣ THE STORY:
-- Introduce the customer warmly
-- Share their need/situation
-- Describe how UCG helped
-- Include quotes or specific details
-- Show the happy outcome
-
-3️⃣ THE VEHICLE:
-- Highlight what they chose
-- Why it was perfect for them
-- Features they love
-
-4️⃣ UCG'S ROLE:
-- Emphasize the guidance provided
-- No pressure, just support
-- Making military life easier
-
-5️⃣ INVITATION:
-"Want to be our next success story? 💙"
-"📞 Contact ${salesPerson}: ${salesWhatsApp}"
-${salesEmail ? `"📧 ${salesEmail}"` : ''}
-
-🎨 TONE: Warm, celebratory, inspiring, personal!`
+Share their car-buying experience at UCG!`
   }
 
-  // Add territory-specific context
+  // Add territory context
   if (territory.toLowerCase().includes('stuttgart')) {
     basePrompt += `\n\n📍 STUTTGART CONTEXT:
 - Mention Patch Barracks, Panzer Kaserne, or Kelley Barracks
-- Reference the USAG Stuttgart community
-- Note proximity: "right near Panzer Kaserne"
-- Use "Stuttgart" naturally throughout`
+- Reference USAG Stuttgart community
+- Note: "right near Panzer Kaserne"
+- Address: Robert-Bosch-Straße 6, 71101 Schönaich`
   } else if (territory.toLowerCase().includes('ramstein') || territory.toLowerCase().includes('kmc')) {
     basePrompt += `\n\n📍 KMC/RAMSTEIN CONTEXT:
-- Mention Ramstein Air Base - largest US military community outside USA
+- Mention Ramstein Air Base
 - Reference KMC (Kaiserslautern Military Community)
 - Talk about airmen and Air Force families`
   }
 
   basePrompt += `\n\n🎨 FINAL REMINDERS:
-- Use LOTS of emojis (owner's preference!)
-- Be enthusiastic with exclamation points!
-- Keep it personal and warm
-- Focus on serving military families
-- Make it feel authentic, not corporate
+- Use LOTS of emojis
+- Be enthusiastic and confident!
+- This is about Used Car Guys CAR DEALERSHIP
+- NEVER write about real estate, houses, or homes
+- Write about VEHICLES and CARS only
 
 Generate the Facebook post now.`
 
   return basePrompt
 }
 
-// GET method for testing
 export async function GET() {
   return NextResponse.json({
     status: 'AI Post Generation API is ready',
