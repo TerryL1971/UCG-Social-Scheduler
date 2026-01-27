@@ -57,10 +57,11 @@ export async function GET(request: Request) {
     }
 
     const now = new Date()
-    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const fourHoursFromNow = new Date(now.getTime() + 4 * 60 * 60 * 1000) // Changed from 2 to 4 hours
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
     console.log(`⏰ [${now.toISOString()}] Checking for schedules`)
+    console.log(`📅 Looking for posts between ${sevenDaysAgo.toISOString()} and ${fourHoursFromNow.toISOString()}`)
 
     // FIXED: Send reminders for ALL content_ready posts that haven't been reminded yet
     // This includes overdue posts too!
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
       `)
       .in('status', ['scheduled', 'content_ready'])
       .gte('scheduled_for', sevenDaysAgo.toISOString())
-      .lte('scheduled_for', twoHoursFromNow.toISOString())
+      .lte('scheduled_for', fourHoursFromNow.toISOString()) // Changed from twoHoursFromNow
       .or('reminder_sent.is.null,reminder_sent.eq.false')
       .not('generated_content', 'is', null)
 
