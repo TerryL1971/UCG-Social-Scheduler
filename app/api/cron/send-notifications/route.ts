@@ -65,6 +65,7 @@ export async function GET(request: Request) {
 
     // FIXED: Send reminders for ALL content_ready posts that haven't been reminded yet
     // This includes overdue posts too!
+    // Using LEFT JOIN instead of INNER JOIN to avoid filtering out posts
     const { data: schedules, error } = await supabase
       .from('post_schedules')
       .select(`
@@ -78,8 +79,8 @@ export async function GET(request: Request) {
         special_context,
         special_offer,
         generated_content,
-        facebook_groups!inner(name, group_url, group_type, description, territories(name)),
-        profiles!inner(full_name, email, whatsapp)
+        facebook_groups(name, group_url, group_type, description, territories(name)),
+        profiles(full_name, email, whatsapp)
       `)
       .in('status', ['scheduled', 'content_ready'])
       .gte('scheduled_for', sevenDaysAgo.toISOString())
