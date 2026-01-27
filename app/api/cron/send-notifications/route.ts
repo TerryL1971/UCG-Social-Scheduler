@@ -65,7 +65,7 @@ export async function GET(request: Request) {
 
     // FIXED: Send reminders for ALL content_ready posts that haven't been reminded yet
     // This includes overdue posts too!
-    // Using LEFT JOIN instead of INNER JOIN to avoid filtering out posts
+    // Note: user_id FK points to auth.users, not profiles, so we fetch profiles separately
     const { data: schedules, error } = await supabase
       .from('post_schedules')
       .select(`
@@ -79,12 +79,11 @@ export async function GET(request: Request) {
         special_context,
         special_offer,
         generated_content,
-        facebook_groups(name, group_url, group_type, description, territories(name)),
-        profiles(full_name, email, whatsapp)
+        facebook_groups(name, group_url, group_type, description, territories(name))
       `)
       .in('status', ['scheduled', 'content_ready'])
       .gte('scheduled_for', sevenDaysAgo.toISOString())
-      .lte('scheduled_for', fourHoursFromNow.toISOString()) // Changed from twoHoursFromNow
+      .lte('scheduled_for', fourHoursFromNow.toISOString())
       .or('reminder_sent.is.null,reminder_sent.eq.false')
       .not('generated_content', 'is', null)
 
@@ -103,14 +102,29 @@ export async function GET(request: Request) {
       })
     }
 
+    // Fetch all unique user profiles in one query
+    const userIds = [...new Set(schedules.map(s => s.user_id))]
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, whatsapp')
+      .in('id', userIds)
+
+    if (profileError) {
+      console.error('❌ Error fetching profiles:', profileError)
+    }
+
+    // Create a map of user_id -> profile for quick lookup
+    const profileMap = new Map(
+      profiles?.map(p => [p.id, p]) || []
+    )
+
     const emailPromises = schedules.map(async (schedule) => {
       const rawGroup = Array.isArray(schedule.facebook_groups) 
         ? schedule.facebook_groups[0] 
         : schedule.facebook_groups
 
-      const rawProfile = Array.isArray(schedule.profiles)
-        ? schedule.profiles[0]
-        : schedule.profiles
+      // Get profile from our profileMap instead of from joined data
+      const profile = profileMap.get(schedule.user_id)
 
       const typedSchedule: PostSchedule = {
         id: schedule.id,
@@ -132,7 +146,7 @@ export async function GET(request: Request) {
             ? { name: rawGroup.territories[0].name }
             : undefined
         } : null,
-        profiles: rawProfile || null
+        profiles: profile || null
       }
       
       if (!typedSchedule.profiles?.email) {
