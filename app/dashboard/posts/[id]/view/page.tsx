@@ -1,6 +1,6 @@
-// app/dashboard/posts/[id]/view/page.tsx
-
 'use client';
+
+// app/dashboard/posts/[id]/view/page.tsx
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
