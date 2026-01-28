@@ -5,9 +5,9 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Plus, Edit, Trash2, Share2, CheckCircle, Search, FileText, Globe } from 'lucide-react'
 
 interface Template {

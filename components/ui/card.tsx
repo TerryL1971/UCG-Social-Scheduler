@@ -1,4 +1,4 @@
-// components/ui/Card.tsx
+// components/ui/card.tsx
 
 'use client';
 

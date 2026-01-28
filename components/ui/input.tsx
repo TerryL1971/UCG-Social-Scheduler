@@ -1,4 +1,4 @@
-// components/ui/Input.tsx
+// components/ui/input.tsx
 
 'use client';
 

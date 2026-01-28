@@ -1,4 +1,4 @@
-// components/ui/Badge.tsx
+// components/ui/badge.tsx
 
 'use client';
 

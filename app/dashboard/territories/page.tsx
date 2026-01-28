@@ -4,8 +4,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { MapPin, Users, Building2, Edit, Save, X } from 'lucide-react'
 import { TerritoryRequestSystem } from '@/components/TerritoryRequestSystem'
 

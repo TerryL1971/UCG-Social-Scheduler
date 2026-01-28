@@ -4,9 +4,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Bell, Mail, User, Save, CheckCircle, Loader2 } from 'lucide-react'
 
 export default function SettingsPage() {

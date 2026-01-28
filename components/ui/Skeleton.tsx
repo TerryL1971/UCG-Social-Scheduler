@@ -1,4 +1,4 @@
-// components/ui/Skeleton.tsx
+// components/ui/skeleton.tsx
 
 'use client';
 

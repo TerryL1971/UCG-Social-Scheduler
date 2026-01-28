@@ -5,8 +5,8 @@
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { 
   ArrowLeft, 
   Copy, 
