@@ -39,8 +39,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           'focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
           'active:scale-[0.98] select-none',
           
-          variant === 'primary' &&
-          'bg-primary text-primary-foreground hover:bg-red-700 focus:ring-ring',
+          variant === 'primary' && 'bg-primary text-primary-foreground hover:bg-red-700 focus:ring-ring',
           variant === 'secondary' && 'bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-neutral-200 border border-neutral-200',
           variant === 'ghost' && 'text-neutral-700 hover:bg-neutral-100',
           variant === 'danger' && 'bg-[var(--destructive)] text-white hover:bg-red-700 shadow-sm',
