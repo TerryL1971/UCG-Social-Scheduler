@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { BarChart3, Users, Calendar, AlertTriangle, CheckCircle, Clock, XCircle, TrendingUp } from 'lucide-react'
 
 type PostWithRelations = {

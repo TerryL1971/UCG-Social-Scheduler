@@ -5,9 +5,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { getApprovedTerritoriesWithDetails } from '@/lib/territoryHelpers'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin, AlertCircle } from 'lucide-react'
 
 type Territory = {
