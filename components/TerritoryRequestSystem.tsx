@@ -4,8 +4,8 @@
 
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { 
   Send, 
   CheckCircle, 
@@ -395,7 +395,7 @@ export function TerritoryRequestSystem({ userRole }: { userRole: UserRole }) {
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => denyRequest(request.id)}
                         className="text-red-600 hover:bg-red-50"
                       >
@@ -464,7 +464,7 @@ export function TerritoryRequestSystem({ userRole }: { userRole: UserRole }) {
                 {submitting ? 'Submitting...' : 'Submit Request'}
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => {
                   setShowRequestModal(false)
                   setSelectedTerritory('')

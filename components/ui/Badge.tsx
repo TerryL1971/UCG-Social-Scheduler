@@ -1,4 +1,4 @@
-// components/ui/badge.tsx
+// components/ui/Badge.tsx
 
 'use client';
 
@@ -20,7 +20,7 @@ export function Badge({ className, variant = 'default', dot = false, children, .
         variant === 'warning' && 'bg-yellow-100 text-yellow-700 border-yellow-200',
         variant === 'error' && 'bg-red-100 text-red-700 border-red-200',
         variant === 'info' && 'bg-blue-100 text-blue-700 border-blue-200',
-        variant === 'neutral' && 'bg-neutral-100 text-neutral-700 border-neutral-200',
+        variant === 'neutral' && 'bg-muted text-muted-foreground border-border',
         className
       )}
       {...props}

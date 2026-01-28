@@ -1,4 +1,4 @@
-// components/ui/card.tsx
+// components/ui/Card.tsx
 
 'use client';
 
@@ -13,8 +13,8 @@ export function Card({ className, hover = false, children, ...props }: CardProps
   return (
     <div
       className={cn(
-        'bg-white rounded-lg shadow-sm border border-neutral-200 transition-all duration-200',
-        hover && 'hover:shadow-md hover:border-[var(--primary)] hover:-translate-y-0.5 cursor-pointer',
+        'bg-card text-card-foreground rounded-lg shadow-sm border border-border transition-all duration-200',
+        hover && 'hover:shadow-md hover:border-primary hover:-translate-y-0.5 cursor-pointer',
         className
       )}
       {...props}
@@ -34,7 +34,7 @@ export function CardHeader({ className, children, ...props }: HTMLAttributes<HTM
 
 export function CardTitle({ className, children, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn('text-xl font-semibold text-neutral-900', className)} {...props}>
+    <h3 className={cn('text-xl font-semibold text-card-foreground', className)} {...props}>
       {children}
     </h3>
   );
@@ -42,7 +42,7 @@ export function CardTitle({ className, children, ...props }: HTMLAttributes<HTML
 
 export function CardDescription({ className, children, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('text-sm text-neutral-500 mt-1', className)} {...props}>
+    <p className={cn('text-sm text-muted-foreground mt-1', className)} {...props}>
       {children}
     </p>
   );

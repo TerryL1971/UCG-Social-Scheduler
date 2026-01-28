@@ -4,8 +4,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { 
   Building2, 
   Users, 
@@ -369,7 +369,7 @@ export default function ManagementDashboard() {
                           <div className="flex flex-col space-y-2 ml-4">
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="secondary"
                               onClick={() => sendEmail(person.email, person.full_name, person.violations)}
                               className="flex items-center"
                             >
@@ -378,7 +378,7 @@ export default function ManagementDashboard() {
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="secondary"
                               onClick={() => sendWhatsApp(person.phone, person.full_name)}
                               className="flex items-center"
                             >
@@ -405,19 +405,19 @@ export default function ManagementDashboard() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <Link href="/dashboard/violations">
-              <Button variant="outline" className="w-full">
+              <Button variant="secondary" className="w-full">
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 All Violations
               </Button>
             </Link>
             <Link href="/dashboard/territories">
-              <Button variant="outline" className="w-full">
+              <Button variant="secondary" className="w-full">
                 <MapPin className="w-4 h-4 mr-2" />
                 Territories
               </Button>
             </Link>
             <Link href="/dashboard/analytics">
-              <Button variant="outline" className="w-full">
+              <Button variant="secondary" className="w-full">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Analytics
               </Button>

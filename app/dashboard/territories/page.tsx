@@ -4,8 +4,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent } from '@/components/ui/Card'
 import { MapPin, Users, Building2, Edit, Save, X } from 'lucide-react'
 import { TerritoryRequestSystem } from '@/components/TerritoryRequestSystem'
 
@@ -269,7 +269,7 @@ export default function TerritoriesPage() {
                       </select>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => setEditingGroupId(null)}
                       >
                         <X className="w-4 h-4" />
@@ -278,7 +278,7 @@ export default function TerritoriesPage() {
                   ) : (
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() => setEditingGroupId(group.id)}
                       className="border-blue-600 text-blue-600 hover:bg-blue-50"
                     >
@@ -326,7 +326,7 @@ export default function TerritoriesPage() {
                       ) : (
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="secondary"
                           onClick={() => setEditingProfileId(profile.id)}
                           className="border-blue-600 text-blue-600 hover:bg-blue-50"
                         >

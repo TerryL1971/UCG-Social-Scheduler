@@ -4,8 +4,8 @@
 
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { 
   AlertTriangle, 
   Edit, 
@@ -359,7 +359,7 @@ export default function MyViolationsPage() {
                       <Link href={`/dashboard/posts/${violation.id}/edit`}>
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="secondary"
                           disabled={actionLoading === violation.id}
                         >
                           <Edit className="w-4 h-4 mr-1" />
@@ -371,7 +371,7 @@ export default function MyViolationsPage() {
                       {!violation.generated_content && (
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="secondary"
                           className="bg-green-50 border-green-600 text-green-700 hover:bg-green-100"
                           onClick={() => handleGenerateNow(violation.id)}
                           disabled={actionLoading === violation.id}
@@ -383,7 +383,7 @@ export default function MyViolationsPage() {
 
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => handleRequestAuthorization(violation.id)}
                         disabled={actionLoading === violation.id}
                       >
@@ -393,7 +393,7 @@ export default function MyViolationsPage() {
 
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="secondary"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => handleDeletePost(violation.id)}
                         disabled={actionLoading === violation.id}

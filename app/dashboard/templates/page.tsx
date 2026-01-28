@@ -5,9 +5,9 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
 import { Plus, Edit, Trash2, Share2, CheckCircle, Search, FileText, Globe } from 'lucide-react'
 
 interface Template {
@@ -149,7 +149,7 @@ export default function TemplatesPage() {
                 <Button
                   key={cat}
                   size="sm"
-                  variant={selectedCategory === cat ? 'default' : 'outline'}
+                  variant={selectedCategory === cat ? 'primary' : 'secondary'}
                   onClick={() => setSelectedCategory(cat)}
                   className="whitespace-nowrap"
                 >
@@ -226,7 +226,7 @@ export default function TemplatesPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => setEditingTemplate(template)}
                   >
                     <Edit className="w-4 h-4 mr-1" />
@@ -235,7 +235,7 @@ export default function TemplatesPage() {
 
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => toggleShare(template)}
                     className={template.is_shared_with_dealership ? 'border-green-500 text-green-700' : ''}
                   >
@@ -245,7 +245,7 @@ export default function TemplatesPage() {
 
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => deleteTemplate(template.id)}
                     className="text-red-600 hover:bg-red-50"
                   >
@@ -452,7 +452,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
                       {generating ? 'Generating...' : '✨ Generate Template'}
                     </Button>
                     <Button 
-                      variant="outline" 
+                      variant="secondary" 
                       onClick={() => setShowAiInput(false)}
                       disabled={generating}
                     >
@@ -467,7 +467,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
                   <span className="text-sm text-gray-600">Manually creating template</span>
                   <Button 
                     size="sm" 
-                    variant="outline" 
+                    variant="secondary" 
                     onClick={() => setShowAiInput(true)}
                   >
                     ✨ Use AI Instead
@@ -531,7 +531,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
             )}
 
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
               {!showAiInput && (
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? 'Creating...' : 'Create Template'}
@@ -668,7 +668,7 @@ function EditTemplateModal({ template, onClose, onSuccess }: {
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>

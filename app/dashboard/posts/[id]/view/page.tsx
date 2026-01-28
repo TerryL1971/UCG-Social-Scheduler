@@ -5,8 +5,8 @@
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { 
   ArrowLeft, 
   Copy, 
@@ -308,7 +308,7 @@ export default function ViewPostPage({ params }: { params: Promise<{ id: string 
             <Button
               onClick={handleCopy}
               disabled={!post.generated_content}
-              variant="outline"
+              variant="secondary"
               size="sm"
             >
               {copied ? (
@@ -358,14 +358,14 @@ export default function ViewPostPage({ params }: { params: Promise<{ id: string 
             )}
 
             <Link href={`/dashboard/posts/${post.id}/edit`}>
-              <Button variant="outline">
+              <Button variant="secondary">
                 <Edit className="w-4 h-4 mr-2" />
                 Edit Post
               </Button>
             </Link>
 
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={handleDelete}
               disabled={deleting}
               className="text-red-600 hover:text-red-700 hover:bg-red-50"

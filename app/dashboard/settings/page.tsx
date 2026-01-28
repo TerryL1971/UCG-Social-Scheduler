@@ -4,9 +4,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
 import { Bell, Mail, User, Save, CheckCircle, Loader2 } from 'lucide-react'
 
 export default function SettingsPage() {
@@ -178,7 +178,7 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={handleTestEmail}
                       disabled={testingEmail || emailSent}
-                      variant="outline"
+                      variant="secondary"
                       className="bg-white hover:bg-green-50 border-green-300"
                     >
                       {testingEmail ? (

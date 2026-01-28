@@ -1,4 +1,4 @@
-// components/ui/skeleton.tsx
+// components/ui/Skeleton.tsx
 
 'use client';
 
@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('animate-pulse bg-neutral-200 rounded', className)}
+      className={cn('animate-pulse bg-muted rounded', className)}
       {...props}
     />
   );
@@ -16,7 +16,7 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 
 export function CardSkeleton() {
   return (
-    <div className="bg-white rounded-lg border border-neutral-200 p-6 space-y-4">
+    <div className="bg-card border border-border rounded-lg p-6 space-y-4">
       <div className="flex items-center justify-between">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-4 w-20" />
@@ -33,7 +33,7 @@ export function CardSkeleton() {
 
 export function PostCardSkeleton() {
   return (
-    <div className="bg-white rounded-lg border border-neutral-200 p-6 space-y-4">
+    <div className="bg-card border border-border rounded-lg p-6 space-y-4">
       <div className="flex justify-between">
         <div className="space-y-2 flex-1">
           <Skeleton className="h-5 w-48" />

@@ -4,8 +4,8 @@
 
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { 
   AlertTriangle, 
   CheckCircle, 
@@ -461,7 +461,7 @@ export default function ViolationsPage() {
                   <div className="mb-4 flex gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() =>
                         sendEmail(
                           violation.profiles?.email || '',
@@ -476,7 +476,7 @@ export default function ViolationsPage() {
 
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() => sendWhatsApp(violation)}
                     >
                       <MessageCircle className="w-4 h-4 mr-1" />
@@ -498,7 +498,7 @@ export default function ViolationsPage() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() => handleDeny(violation.id)}
                       disabled={actionLoading === violation.id}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"

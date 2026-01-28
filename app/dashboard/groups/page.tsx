@@ -5,9 +5,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { getApprovedTerritoriesWithDetails } from '@/lib/territoryHelpers'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin, AlertCircle } from 'lucide-react'
 
 type Territory = {
@@ -496,7 +496,7 @@ export default function GroupsPage() {
                 >
                   Add Group
                 </button>
-                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
+                <Button type="button" variant="secondary" onClick={() => setShowAddForm(false)}>
                   Cancel
                 </Button>
               </div>
@@ -617,14 +617,14 @@ export default function GroupsPage() {
 
                   <div className="flex space-x-2 ml-4">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => toggleGroupStatus(group.id, group.is_active)}
                     >
                       {group.is_active ? 'Deactivate' : 'Activate'}
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => deleteGroup(group.id)}
                     >

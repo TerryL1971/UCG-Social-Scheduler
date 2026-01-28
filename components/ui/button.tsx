@@ -1,4 +1,4 @@
-// components/ui/button.tsx
+// components/ui/Button.tsx
 
 'use client';
 
@@ -7,8 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  // Added 'default' to satisfy standard UI naming conventions and fix the TS error
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'outline' | 'default';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   icon?: React.ReactNode;
@@ -36,39 +35,41 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
-          'active:scale-[0.98] select-none',
+          // Base styles
+          'inline-flex items-center justify-center font-medium rounded-lg',
+          'transition-all duration-200 select-none',
+          'focus:outline-none focus:ring-2 focus:ring-offset-2',
+          'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',
+          'active:scale-[0.98]',
           
-          // 'default' now maps to the same styles as 'primary'
-          (variant === 'primary' || variant === 'default') && 'bg-primary text-primary-foreground hover:bg-red-700 focus:ring-ring',
-          variant === 'secondary' && 'bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-neutral-200 border border-neutral-200',
-          variant === 'ghost' && 'text-neutral-700 hover:bg-neutral-100',
-          variant === 'danger' && 'bg-[var(--destructive)] text-white hover:bg-red-700 shadow-sm',
-          variant === 'success' && 'bg-green-600 text-white hover:bg-green-700 shadow-sm',
-          variant === 'outline' && 'border border-neutral-300 bg-transparent text-neutral-800 hover:bg-neutral-100 focus:ring-neutral-300',
-
-          size === 'sm' && 'px-3 py-1.5 text-sm gap-1.5',
-          size === 'md' && 'px-4 py-2 text-base gap-2',
-          size === 'lg' && 'px-6 py-3 text-lg gap-2.5',
+          // Variants using Tailwind v4 theme colors
+          variant === 'primary' && 'bg-primary text-primary-foreground hover:bg-red-700 shadow-sm hover:shadow-md focus:ring-ring',
+          variant === 'secondary' && 'bg-secondary text-secondary-foreground hover:bg-neutral-200 border border-border shadow-sm focus:ring-ring',
+          variant === 'ghost' && 'text-foreground hover:bg-accent hover:text-accent-foreground focus:ring-ring',
+          variant === 'danger' && 'bg-destructive text-white hover:bg-red-700 shadow-sm hover:shadow-md focus:ring-destructive',
+          variant === 'success' && 'bg-green-600 text-white hover:bg-green-700 shadow-sm hover:shadow-md focus:ring-green-500',
           
+          // Sizes
+          size === 'sm' && 'px-3 py-1.5 text-sm gap-1.5 min-h-[32px]',
+          size === 'md' && 'px-4 py-2 text-base gap-2 min-h-[40px]',
+          size === 'lg' && 'px-6 py-3 text-lg gap-2.5 min-h-[48px]',
+          
+          // Full width
           fullWidth && 'w-full',
+          
           className
         )}
         disabled={disabled || loading}
         {...props}
       >
         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-        {!loading && icon && iconPosition === 'left' && <span>{icon}</span>}
+        {!loading && icon && iconPosition === 'left' && <span className="flex-shrink-0">{icon}</span>}
         {children}
-        {!loading && icon && iconPosition === 'right' && <span>{icon}</span>}
+        {!loading && icon && iconPosition === 'right' && <span className="flex-shrink-0">{icon}</span>}
       </button>
     );
   }
 );
 
 Button.displayName = 'Button';
-
-// Added default export to handle both import styles and fix the "undefined" element error
-export default Button;
 export { Button };
