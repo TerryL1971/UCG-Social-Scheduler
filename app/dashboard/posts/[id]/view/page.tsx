@@ -1,388 +1,346 @@
 // app/dashboard/posts/[id]/view/page.tsx
 
-'use client'
+'use client';
 
-import { createClient } from '@/lib/supabase'
-import { useEffect, useState, use } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase';
+import { Button } from '@/components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { toast } from '@/lib/toast';
 import { 
   ArrowLeft, 
   Copy, 
-  CheckCircle, 
-  Edit, 
-  Trash2,
-  Calendar,
-  Users,
-  MapPin,
-  AlertTriangle
-} from 'lucide-react'
-import Link from 'next/link'
+  ExternalLink, 
+  Calendar, 
+  Clock, 
+  RefreshCw,
+  CheckCircle2,
+  XCircle
+} from 'lucide-react';
+import { formatDate, copyToClipboard, getStatusColor } from '@/lib/utils';
 
-type Post = {
-  id: string
-  generated_content: string
-  scheduled_for: string
-  status: string
-  post_type: string
-  territory_violation_acknowledged: boolean
-  violation_status: string | null
-  notes: string | null
+interface Post {
+  id: string;
+  scheduled_for: string;
+  status: string;
+  post_type: string;
+  target_audience?: string;
+  special_context?: string;
+  special_offer?: string;
+  generated_content?: string;
+  reminder_sent: boolean;
+  created_at: string;
   facebook_groups: {
-    name: string
-    territory_id: string | null
-    territories: {
-      name: string
-    } | null
-  } | null
+    id: string;
+    name: string;
+    group_url?: string;
+  };
 }
 
-export default function ViewPostPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params)
-  const [post, setPost] = useState<Post | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
-  const [marking, setMarking] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
+export default function ViewPostPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const [post, setPost] = useState<Post | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    fetchPost()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    loadPost();
+  }, [params.id]);
 
-  const fetchPost = async () => {
-    setLoading(true)
+  async function loadPost() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('post_schedules')
         .select(`
           *,
           facebook_groups (
+            id,
             name,
-            territory_id,
-            territories(name)
+            group_url
           )
         `)
-        .eq('id', resolvedParams.id)
-        .eq('user_id', user.id)
-        .single()
+        .eq('id', params.id)
+        .single();
 
-      if (error || !data) {
-        alert('Post not found')
-        router.push('/dashboard/posts')
-        return
-      }
-
-      const group = Array.isArray(data.facebook_groups) 
-        ? data.facebook_groups[0] 
-        : data.facebook_groups
-
-      setPost({
-        ...data,
-        facebook_groups: group ? {
-          ...group,
-          territories: Array.isArray(group.territories) 
-            ? group.territories[0] 
-            : group.territories
-        } : null
-      } as Post)
-    } catch (err) {
-      console.error('Error fetching post:', err)
-      alert('Failed to load post')
+      if (error) throw error;
+      setPost(data);
+    } catch (error) {
+      console.error('Error loading post:', error);
+      toast.error('Failed to load post');
+      router.push('/dashboard/posts');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
-  const handleCopy = async () => {
-    if (!post?.generated_content) return
+  async function handleCopyContent() {
+    if (!post?.generated_content) {
+      toast.error('No content to copy');
+      return;
+    }
 
-    try {
-      await navigator.clipboard.writeText(post.generated_content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-      alert('Failed to copy to clipboard')
+    const success = await copyToClipboard(post.generated_content);
+    if (success) {
+      toast.success('Content copied!', 'Ready to paste into Facebook');
+    } else {
+      toast.error('Failed to copy', 'Please try selecting and copying manually');
     }
   }
 
-  const handleMarkAsPosted = async () => {
-    if (!post) return
+  async function handleMarkPosted() {
+    if (!post) return;
 
-    setMarking(true)
+    setActionLoading(true);
     try {
+      const supabase = createClient();
       const { error } = await supabase
         .from('post_schedules')
-        .update({
-          status: 'posted',
-          posted_at: new Date().toISOString()
-        })
-        .eq('id', post.id)
+        .update({ status: 'posted' })
+        .eq('id', post.id);
 
-      if (error) throw error
+      if (error) throw error;
 
-      alert('Post marked as posted! ✅')
-      router.push('/dashboard/posts')
-    } catch (err) {
-      console.error('Error marking as posted:', err)
-      alert('Failed to mark as posted')
+      toast.success('Marked as posted!');
+      router.push('/dashboard/posts');
+    } catch (error) {
+      console.error('Error marking as posted:', error);
+      toast.error('Failed to mark as posted');
     } finally {
-      setMarking(false)
+      setActionLoading(false);
     }
   }
 
-  const handleDelete = async () => {
-    if (!post) return
-    if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
-      return
-    }
+  async function handleRegenerateContent() {
+    if (!post) return;
 
-    setDeleting(true)
+    setActionLoading(true);
+    const loadingToast = toast.loading('Regenerating content...');
+
     try {
-      const { error } = await supabase
-        .from('post_schedules')
-        .delete()
-        .eq('id', post.id)
+      const response = await fetch(`/api/posts/${post.id}/regenerate`, {
+        method: 'POST',
+      });
 
-      if (error) throw error
+      if (!response.ok) throw new Error('Failed to regenerate');
 
-      alert('Post deleted successfully')
-      router.push('/dashboard/posts')
-    } catch (err) {
-      console.error('Error deleting post:', err)
-      alert('Failed to delete post')
+      const data = await response.json();
+      
+      toast.dismiss(loadingToast);
+      toast.success('Content regenerated!');
+      
+      // Reload post to show new content
+      await loadPost();
+    } catch (error) {
+      console.error('Error regenerating:', error);
+      toast.dismiss(loadingToast);
+      toast.error('Failed to regenerate content');
     } finally {
-      setDeleting(false)
+      setActionLoading(false);
     }
-  }
-
-  const getStatusBadge = () => {
-    if (!post) return null
-
-    const statusColors: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      ready: 'bg-green-100 text-green-800',
-      posted: 'bg-blue-100 text-blue-800',
-      failed: 'bg-red-100 text-red-800'
-    }
-
-    const statusLabels: Record<string, string> = {
-      pending: 'Pending Generation',
-      ready: 'Ready to Post',
-      posted: 'Posted',
-      failed: 'Generation Failed'
-    }
-
-    return (
-      <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusColors[post.status] || 'bg-gray-100 text-gray-800'}`}>
-        {statusLabels[post.status] || post.status}
-      </span>
-    )
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading post...</p>
-        </div>
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <Skeleton className="h-8 w-32 mb-6" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-4 w-32" />
+          </CardContent>
+        </Card>
       </div>
-    )
+    );
   }
 
   if (!post) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">Post not found</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Link href="/dashboard/posts">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <Card>
+          <CardContent className="text-center py-12">
+            <XCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Post not found</h3>
+            <Button onClick={() => router.push('/dashboard/posts')}>
               Back to Posts
             </Button>
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mt-2">View Post</h1>
-          <p className="text-gray-600 mt-1">Review and copy your post content</p>
-        </div>
-        {getStatusBadge()}
+          </CardContent>
+        </Card>
       </div>
+    );
+  }
 
-      {/* Post Details Card */}
+  const isOverdue = new Date(post.scheduled_for) < new Date();
+  const statusColor = getStatusColor(post.status);
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      {/* Back Button */}
+      <Button
+        variant="ghost"
+        onClick={() => router.push('/dashboard/posts')}
+        icon={<ArrowLeft className="h-4 w-4" />}
+        className="mb-6"
+      >
+        Back to Posts
+      </Button>
+
+      {/* Main Post Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Post Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3">
-              <Users className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="text-sm text-gray-500">Facebook Group</p>
-                <p className="font-medium text-gray-900">
-                  {post.facebook_groups?.name || 'Unknown Group'}
-                </p>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <CardTitle>{post.facebook_groups.name}</CardTitle>
+                <Badge variant={statusColor} dot>
+                  {post.status === 'content_ready' ? 'Ready to Post' : post.status}
+                </Badge>
+                {isOverdue && post.status !== 'posted' && (
+                  <Badge variant="error" dot>Overdue</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  {formatDate(post.scheduled_for)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {post.post_type.replace('_', ' ')}
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <MapPin className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="text-sm text-gray-500">Territory</p>
-                <p className="font-medium text-gray-900">
-                  {post.facebook_groups?.territories?.name || 'Unknown'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-purple-600" />
-              <div>
-                <p className="text-sm text-gray-500">Scheduled For</p>
-                <p className="font-medium text-gray-900">
-                  {new Date(post.scheduled_for).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 text-orange-600 flex items-center justify-center">
-                📝
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Post Type</p>
-                <p className="font-medium text-gray-900 capitalize">
-                  {post.post_type.replace(/_/g, ' ')}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {post.notes && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-900">
-                <strong>Notes:</strong> {post.notes}
-              </p>
-            </div>
-          )}
-
-          {post.territory_violation_acknowledged && (
-            <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start">
-              <AlertTriangle className="w-5 h-5 text-orange-600 mr-2 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-orange-900">Territory Violation</p>
-                <p className="text-sm text-orange-800 mt-1">
-                  This post is outside your assigned territory. 
-                  {post.violation_status === 'justified' && ' Justification provided.'}
-                  {post.violation_status === 'authorization_requested' && ' Authorization requested.'}
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Post Content Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Post Content</CardTitle>
-            <Button
-              onClick={handleCopy}
-              disabled={!post.generated_content}
-              variant="secondary"
-              size="sm"
-            >
-              {copied ? (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copy to Clipboard
-                </>
-              )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {post.generated_content ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-              <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
-                {post.generated_content}
-              </p>
-            </div>
-          ) : (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-              <p className="text-yellow-800">
-                ⏳ Content not yet generated. It will be automatically generated 2 hours before the scheduled time.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons */}
-      <Card>
-        <CardContent className="py-6">
-          <div className="flex flex-wrap gap-3">
-            {post.status === 'ready' && (
+            {post.facebook_groups.group_url && (
               <Button
-                onClick={handleMarkAsPosted}
-                disabled={marking}
-                className="bg-green-600 hover:bg-green-700"
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open(post.facebook_groups.group_url, '_blank')}
+                icon={<ExternalLink className="h-4 w-4" />}
               >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                {marking ? 'Marking...' : 'Mark as Posted'}
+                Open Group
               </Button>
             )}
+          </div>
+        </CardHeader>
 
-            <Link href={`/dashboard/posts/${post.id}/edit`}>
-              <Button variant="secondary">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Post
-              </Button>
-            </Link>
+        <CardContent className="space-y-6">
+          {/* Post Details */}
+          <div className="grid gap-4">
+            {post.target_audience && (
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">
+                  Target Audience
+                </h4>
+                <p className="text-foreground">{post.target_audience}</p>
+              </div>
+            )}
 
-            <Button
-              variant="secondary"
-              onClick={handleDelete}
-              disabled={deleting}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              {deleting ? 'Deleting...' : 'Delete Post'}
-            </Button>
+            {post.special_context && (
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">
+                  Special Context
+                </h4>
+                <p className="text-foreground">{post.special_context}</p>
+              </div>
+            )}
+
+            {post.special_offer && (
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">
+                  Special Offer
+                </h4>
+                <p className="text-foreground">{post.special_offer}</p>
+              </div>
+            )}
           </div>
 
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>💡 Tip:</strong> Copy the content above and paste it directly into your Facebook group. 
-              After posting, click &quot;Mark as Posted&quot; to update the status.
-            </p>
+          {/* Generated Content */}
+          {post.generated_content ? (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Generated Content ({post.generated_content.length} characters)
+                </h4>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCopyContent}
+                  icon={<Copy className="h-4 w-4" />}
+                >
+                  Copy
+                </Button>
+              </div>
+              <div className="bg-muted rounded-lg p-4 whitespace-pre-wrap font-mono text-sm max-h-96 overflow-y-auto">
+                {post.generated_content}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-muted rounded-lg p-8 text-center">
+              <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-muted-foreground text-sm">
+                Content will be generated 2 hours before scheduled time
+              </p>
+            </div>
+          )}
+
+          {/* Metadata */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground pt-4 border-t">
+            <span>Created {formatDate(post.created_at)}</span>
+            {post.reminder_sent && (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Reminder sent
+              </span>
+            )}
           </div>
         </CardContent>
+
+        <CardFooter className="flex items-center gap-3">
+          {post.status !== 'posted' && post.generated_content && (
+            <>
+              <Button
+                variant="success"
+                onClick={handleMarkPosted}
+                loading={actionLoading}
+                icon={<CheckCircle2 className="h-4 w-4" />}
+              >
+                Mark as Posted
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={handleRegenerateContent}
+                loading={actionLoading}
+                icon={<RefreshCw className="h-4 w-4" />}
+              >
+                Regenerate Content
+              </Button>
+            </>
+          )}
+
+          {post.status === 'posted' && (
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              <span className="font-medium">Posted Successfully</span>
+            </div>
+          )}
+
+          <Button
+            variant="ghost"
+            onClick={() => router.push(`/dashboard/posts/${post.id}/edit`)}
+            className="ml-auto"
+          >
+            Edit Post
+          </Button>
+        </CardFooter>
       </Card>
     </div>
-  )
+  );
 }
