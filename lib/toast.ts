@@ -1,6 +1,6 @@
-'use client';
-
 // lib/toast.ts
+
+'use client';
 
 import { toast as sonnerToast } from 'sonner';
 
