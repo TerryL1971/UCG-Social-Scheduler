@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 
-  
+  experimental: {
+    turbo: false,
+  },
 
   // Add headers for PWA
   async headers() {
