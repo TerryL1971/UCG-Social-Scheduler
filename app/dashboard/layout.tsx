@@ -178,6 +178,7 @@ export default function DashboardLayout({
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'owner'] },
     { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'owner'] },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Bulk Operations', href: '/dashboard/posts/bulk', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner'] },
   ]
 
   const filteredNavigation = navigation.filter(item => 

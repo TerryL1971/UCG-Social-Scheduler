@@ -1,3 +1,5 @@
+// app/api/posts/[id]/regenerate/route.ts
+
 import { createClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
