@@ -22,7 +22,8 @@ import {
   Menu,
   X,
   RotateCw,
-  Sparkles
+  Sparkles,
+  Layers,
 } from 'lucide-react'
 import PWARegister from '../pwa-register'
 
@@ -167,18 +168,18 @@ export default function DashboardLayout({
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'owner'] },
-    { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Create Post', href: '/dashboard/posts/create', icon: Sparkles, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Bulk Operations', href: '/dashboard/posts/bulk', icon: Layers, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Recurring Posts', href: '/dashboard/posts/recurring', icon: RotateCw, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'owner'] },
-    { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Territories', href: '/dashboard/territories', icon: MapPin, roles: ['salesperson', 'manager', 'admin', 'owner'] },
+    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'owner'] },
     { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, roles: ['salesperson'] },
     { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, roles: ['manager', 'admin', 'owner'] },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'owner'] },
     { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'owner'] },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner'] },
-    { name: 'Bulk Operations', href: '/dashboard/posts/bulk', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner'] },
   ]
 
   const filteredNavigation = navigation.filter(item => 
