@@ -27,55 +27,30 @@ import {
 } from 'lucide-react'
 import PWARegister from '../pwa-register'
 
-// PWA Install Button Component
+// PWA Install Button Component - iOS Compatible
 function PWAInstallButton() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
-  const [isInstallable, setIsInstallable] = useState(false)
-  const [isInstalled, setIsInstalled] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
+  const [isInstalled, setIsInstalled] = useState(false)
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false)
 
   useEffect(() => {
     setMounted(true)
     
-    // Check if already running as installed app
+    // Detect iOS
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    setIsIOS(iOS)
+    
+    // Check if already installed (works for both iOS and Android/Desktop)
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstalled(true)
-      return
-    }
-
-    const handler = (e: any) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-      setIsInstallable(true)
-    }
-
-    window.addEventListener('beforeinstallprompt', handler)
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler)
     }
   }, [])
 
-  const handleInstall = async () => {
-    if (!deferredPrompt) return
-    
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    
-    if (outcome === 'accepted') {
-      setIsInstalled(true)
-    }
-    setDeferredPrompt(null)
-    setIsInstallable(false)
-  }
+  // Don't render during SSR
+  if (!mounted) return null
 
-  // CRITICAL FIX: Return null during SSR to prevent hydration mismatch
-  // This ensures server and client render the same thing initially
-  if (!mounted) {
-    return null
-  }
-
-  // Already installed - show green badge
+  // Already installed - show success badge
   if (isInstalled) {
     return (
       <div className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">
@@ -87,23 +62,98 @@ function PWAInstallButton() {
     )
   }
 
-  // Installable - show red install button
-  if (isInstallable) {
+  // iOS - Show install button with instructions modal
+  if (isIOS) {
     return (
-      <button
-        onClick={handleInstall}
-        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-sm transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-        </svg>
-        <span className="hidden sm:inline">Install App</span>
-        <span className="sm:hidden">Install</span>
-      </button>
+      <>
+        <button
+          onClick={() => setShowIOSInstructions(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-sm transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span className="hidden sm:inline">Install App</span>
+          <span className="sm:hidden">Install</span>
+        </button>
+
+        {/* iOS Installation Instructions Modal */}
+        {showIOSInstructions && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowIOSInstructions(false)}
+          >
+            <div 
+              className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900">Install UCG Scheduler</h3>
+                <button
+                  onClick={() => setShowIOSInstructions(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-4 text-sm text-gray-700">
+                <p className="text-gray-600">
+                  Install this app on your iPhone for quick access and offline use!
+                </p>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0 font-bold">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 mb-1">Tap the Share button</p>
+                    <p className="text-gray-600">Look for the square with an arrow pointing up at the bottom of Safari</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0 font-bold">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 mb-1">Select "Add to Home Screen"</p>
+                    <p className="text-gray-600">Scroll down in the menu and tap this option</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0 font-bold">
+                    3
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 mb-1">Tap "Add"</p>
+                    <p className="text-gray-600">Confirm by tapping "Add" in the top right corner</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-800">
+                    💡 <strong>Tip:</strong> Once installed, the app will work offline and appear on your home screen like a native app!
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowIOSInstructions(false)}
+                className="mt-6 w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        )}
+      </>
     )
   }
 
-  // Not installable - return null (cleaner than showing waiting state)
+  // Not iOS and not installed - don't show anything
+  // (Android/Desktop will get automatic install prompt)
   return null
 }
 
