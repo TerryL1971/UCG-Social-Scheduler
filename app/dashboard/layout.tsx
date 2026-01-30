@@ -69,13 +69,10 @@ function PWAInstallButton() {
     setIsInstallable(false)
   }
 
-  // Don't render anything until mounted (prevents hydration mismatch)
+  // CRITICAL FIX: Return null during SSR to prevent hydration mismatch
+  // This ensures server and client render the same thing initially
   if (!mounted) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold">
-        <span>...</span>
-      </div>
-    )
+    return null
   }
 
   // Already installed - show green badge
@@ -106,12 +103,8 @@ function PWAInstallButton() {
     )
   }
 
-  // Not installable yet - show waiting state
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-semibold border-2 border-yellow-600">
-      <span>🔄 PWA Ready</span>
-    </div>
-  )
+  // Not installable - return null (cleaner than showing waiting state)
+  return null
 }
 
 export default function DashboardLayout({
