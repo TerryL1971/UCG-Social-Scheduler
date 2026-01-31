@@ -1,7 +1,7 @@
 {
   "name": "UCG Social Scheduler",
   "short_name": "UCG Scheduler",
-  "description": "Social media scheduling for Used Car Guys",
+  "description": "Social media scheduling and management for Used Car Guys",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -28,21 +28,46 @@
       "purpose": "monochrome"
     }
   ],
-  "categories": ["productivity", "business"],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Schedule Post",
       "short_name": "Schedule",
-      "description": "Create a new scheduled post",
-      "url": "/dashboard/posts/create",
-      "icons": [{ "src": "/icon-schedule.png", "sizes": "96x96" }]
+      "description": "Schedule a new social media post",
+      "url": "/dashboard/posts/schedule",
+      "icons": [
+        {
+          "src": "/icon-schedule.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "View Posts",
       "short_name": "Posts",
-      "description": "View all scheduled posts",
+      "description": "View scheduled posts",
       "url": "/dashboard/posts",
-      "icons": [{ "src": "/icon-posts.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/icon-posts.png",
+          "sizes": "96x96"
+        }
+      ]
     }
-  ]
+  ],
+  "categories": ["productivity", "business", "social"],
+  "prefer_related_applications": false
 }
