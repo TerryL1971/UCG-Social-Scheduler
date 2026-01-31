@@ -1,157 +1,170 @@
-// public/sw.js
-const CACHE_NAME = 'ucg-scheduler-v1'
-const RUNTIME_CACHE = 'ucg-runtime'
+// public/sw.js - Enhanced Service Worker
 
-// Assets to cache on install
-const PRECACHE_ASSETS = [
+const CACHE_NAME = 'ucg-scheduler-v2.1.0'
+const RUNTIME_CACHE = 'ucg-runtime'
+const IMAGE_CACHE = 'ucg-images'
+
+// Files to cache immediately on install
+const PRECACHE_URLS = [
+  '/',
   '/dashboard',
-  '/dashboard/posts',
-  '/dashboard/posts/schedule',
-  '/offline.html'
+  '/offline.html',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/ucg-logo.png',
+  '/manifest.json'
 ]
 
-// Install event - cache essential assets
+// Install event - cache critical files
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing service worker...')
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
+      .then((cache) => {
+        console.log('[SW] Precaching files')
+        return cache.addAll(PRECACHE_URLS)
+      })
+      .then(() => self.skipWaiting()) // Activate immediately
   )
 })
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker...')
+  
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
-          .map((name) => caches.delete(name))
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME && 
+              cacheName !== RUNTIME_CACHE && 
+              cacheName !== IMAGE_CACHE) {
+            console.log('[SW] Deleting old cache:', cacheName)
+            return caches.delete(cacheName)
+          }
+        })
       )
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()) // Take control immediately
   )
 })
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - serve from cache, fall back to network
 self.addEventListener('fetch', (event) => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
+  const { request } = event
+  const url = new URL(request.url)
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
     return
   }
 
-  // API requests - network first, cache fallback
-  if (event.request.url.includes('/api/')) {
+  // Skip chrome extensions and external domains
+  if (!url.origin.includes(self.location.origin)) {
+    return
+  }
+
+  // Handle API calls differently - always try network first
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          // Cache successful GET requests
-          if (event.request.method === 'GET' && response.status === 200) {
+          // Don't cache API responses
+          return response
+        })
+        .catch(() => {
+          // Return error response if offline
+          return new Response(
+            JSON.stringify({ error: 'Offline - API unavailable' }),
+            { 
+              status: 503, 
+              headers: { 'Content-Type': 'application/json' }
+            }
+          )
+        })
+    )
+    return
+  }
+
+  // Handle images - cache first, then network
+  if (request.destination === 'image') {
+    event.respondWith(
+      caches.open(IMAGE_CACHE).then((cache) => {
+        return cache.match(request).then((response) => {
+          return response || fetch(request).then((networkResponse) => {
+            cache.put(request, networkResponse.clone())
+            return networkResponse
+          })
+        })
+      })
+    )
+    return
+  }
+
+  // Handle navigation requests (pages)
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache successful responses
+          if (response.ok) {
             const responseClone = response.clone()
             caches.open(RUNTIME_CACHE).then((cache) => {
-              cache.put(event.request, responseClone)
+              cache.put(request, responseClone)
             })
           }
           return response
         })
         .catch(() => {
-          return caches.match(event.request)
+          // Offline - try cache first, then offline page
+          return caches.match(request)
+            .then((response) => {
+              return response || caches.match('/offline.html')
+            })
         })
     )
     return
   }
 
-  // Static assets - cache first, network fallback
+  // Handle all other requests - Network first, fall back to cache
   event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse
-        }
-
-        return fetch(event.request)
-          .then((response) => {
-            // Cache successful GET requests
-            if (event.request.method === 'GET' && response.status === 200) {
-              const responseClone = response.clone()
-              caches.open(RUNTIME_CACHE).then((cache) => {
-                cache.put(event.request, responseClone)
-              })
-            }
-            return response
+    fetch(request)
+      .then((response) => {
+        // Cache successful responses
+        if (response.ok) {
+          const responseClone = response.clone()
+          caches.open(RUNTIME_CACHE).then((cache) => {
+            cache.put(request, responseClone)
           })
-          .catch(() => {
-            // Return offline page for navigation requests
-            if (event.request.mode === 'navigate') {
-              return caches.match('/offline.html')
-            }
+        }
+        return response
+      })
+      .catch(() => {
+        // Network failed - try cache
+        return caches.match(request)
+          .then((response) => {
+            return response || caches.match('/offline.html')
           })
       })
   )
 })
 
-// Push notification event
-self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {}
-  const title = data.title || 'UCG Social Scheduler'
-  const options = {
-    body: data.body || 'You have a new notification',
-    icon: '/icon-192.png',
-    badge: '/badge-96.png',
-    tag: data.tag || 'notification',
-    data: {
-      url: data.url || '/dashboard',
-      scheduleId: data.scheduleId
-    },
-    actions: [
-      {
-        action: 'view',
-        title: 'View Post'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
-    ],
-    vibrate: [200, 100, 200],
-    requireInteraction: true
+// Listen for messages from clients
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
   }
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  )
 })
 
-// Notification click event
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
-
-  if (event.action === 'view') {
-    const url = event.notification.data.url || '/dashboard'
+// Background sync for offline actions (if needed in future)
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-posts') {
     event.waitUntil(
-      clients.openWindow(url)
+      // Sync any pending posts when back online
+      console.log('[SW] Background sync:', event.tag)
     )
   }
 })
 
-// Background sync event (for offline actions)
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-posts') {
-    event.waitUntil(syncPosts())
-  }
-})
-
-async function syncPosts() {
-  // Sync any pending actions when back online
-  const cache = await caches.open(RUNTIME_CACHE)
-  const requests = await cache.keys()
-  
-  for (const request of requests) {
-    if (request.url.includes('/api/posts')) {
-      try {
-        await fetch(request)
-      } catch (error) {
-        console.error('Sync failed:', error)
-      }
-    }
-  }
-}
+console.log('[SW] Service Worker loaded and ready!')
