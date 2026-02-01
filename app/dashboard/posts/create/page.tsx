@@ -337,10 +337,10 @@ export default function CreatePostPage() {
   const selectedGroupData = groups.find(g => g.id === selectedGroup)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 px-4">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-4 sm:p-6 text-white">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
           <Sparkles className="w-8 h-8" />
           Create Post
         </h1>
@@ -358,7 +358,7 @@ export default function CreatePostPage() {
         <select
           value={selectedGroup}
           onChange={(e) => setSelectedGroup(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+          className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
         >
           <option value="">Choose a group...</option>
           {groups.map((group) => (
@@ -385,7 +385,7 @@ export default function CreatePostPage() {
         </h2>
         
         {/* Post Type Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-6">
           {[
             { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
             { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
@@ -418,7 +418,7 @@ export default function CreatePostPage() {
               value={specialOffer}
               onChange={(e) => setSpecialOffer(e.target.value)}
               placeholder="e.g., 10% off military pricing, free warranty upgrade, $500 trade-in bonus..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+              className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               rows={2}
             />
           </div>
@@ -428,7 +428,7 @@ export default function CreatePostPage() {
         {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
           <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
             <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <input
                 type="text"
                 value={vehicleData.make}
@@ -543,7 +543,7 @@ export default function CreatePostPage() {
       <button
         onClick={handleGeneratePost}
         disabled={!selectedGroup || generating}
-        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
+        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base sm:text-lg"
       >
         <Sparkles className="w-6 h-6" />
         {generating ? 'Generating...' : 'Generate Post with AI'}
@@ -562,7 +562,7 @@ export default function CreatePostPage() {
           value={editedContent}
           onChange={(e) => setEditedContent(e.target.value)}
           placeholder="Your post content will appear here... or type your own!"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
+          className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
           rows={12}
         />
         <div className="flex items-center justify-between mt-3">
@@ -589,7 +589,7 @@ export default function CreatePostPage() {
               <Calendar className="w-6 h-6 text-red-600" />
               Step 4: Schedule Post (Optional)
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date
@@ -599,7 +599,7 @@ export default function CreatePostPage() {
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
                   min={minDate}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+                  className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
               </div>
               <div>
@@ -620,7 +620,7 @@ export default function CreatePostPage() {
                   }}
                   placeholder="14:30"
                   maxLength={5}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-mono text-lg"
+                  className="w-full px-4 py-3 min-h-[44px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-mono text-lg"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Examples: 09:00, 14:30, 18:45, 23:59
@@ -630,11 +630,11 @@ export default function CreatePostPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <button
               onClick={handleSaveAsTemplate}
               disabled={loading}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
             >
               <FileText className="w-5 h-5" />
               Save as Template
@@ -642,7 +642,7 @@ export default function CreatePostPage() {
             <button
               onClick={handleSchedulePost}
               disabled={loading || !scheduledDate || !scheduledTime}
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
             >
               <Calendar className="w-5 h-5" />
               {loading ? 'Scheduling...' : 'Schedule Post'}

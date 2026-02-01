@@ -241,17 +241,17 @@ export default function BulkOperationsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl space-y-6">
+    <div className="container mx-auto px-4 py-4 sm:py-8 max-w-7xl space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Bulk Operations</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Bulk Operations</h1>
         <p className="text-muted-foreground mt-1">
           Manage multiple posts at once
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -306,7 +306,7 @@ export default function BulkOperationsPage() {
         <CardContent className="p-4">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             {/* Filter Buttons */}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant={statusFilter === 'all' ? 'primary' : 'secondary'}
@@ -354,7 +354,7 @@ export default function BulkOperationsPage() {
       {selectedPosts.size > 0 && (
         <Card className="border-primary">
           <CardContent className="p-4">
-            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-3">
                 <AlertCircle className="h-5 w-5 text-primary" />
                 <span className="font-medium text-foreground">

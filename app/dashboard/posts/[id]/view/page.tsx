@@ -145,7 +145,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
         <Skeleton className="h-8 w-32 mb-6" />
         <Card>
           <CardHeader>
@@ -162,7 +162,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
 
   if (!post) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
         <Card>
           <CardContent className="text-center py-12">
             <XCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -194,7 +194,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
       {/* Main Post Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <CardTitle>{post.facebook_groups.name}</CardTitle>
@@ -230,7 +230,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6">
           {/* Post Details */}
           <div className="grid gap-4">
             {post.target_audience && (
@@ -302,7 +302,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
           </div>
         </CardContent>
 
-        <CardFooter className="flex items-center gap-3">
+        <CardFooter className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {post.status !== 'posted' && post.generated_content && (
             <>
               <Button
