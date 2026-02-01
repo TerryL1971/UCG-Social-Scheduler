@@ -241,17 +241,17 @@ export default function BulkOperationsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-4 sm:py-8 max-w-7xl space-y-4 sm:space-y-6">
+    <div className="container mx-auto px-4 py-4 sm:py-4 sm:py-8 max-w-7xl space-y-4 sm:space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Bulk Operations</h1>
+        <h1 className="text-xl sm:text-2xl md:text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Bulk Operations</h1>
         <p className="text-muted-foreground mt-1">
           Manage multiple posts at once
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -259,7 +259,7 @@ export default function BulkOperationsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-foreground">{posts.length}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">{posts.length}</p>
           </CardContent>
         </Card>
 
@@ -270,7 +270,7 @@ export default function BulkOperationsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-primary">{selectedPosts.size}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">{selectedPosts.size}</p>
           </CardContent>
         </Card>
 
@@ -281,7 +281,7 @@ export default function BulkOperationsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-yellow-600">
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-yellow-600">
               {posts.filter(p => p.status === 'scheduled').length}
             </p>
           </CardContent>
@@ -294,7 +294,7 @@ export default function BulkOperationsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600">
               {posts.filter(p => p.status === 'content_ready').length}
             </p>
           </CardContent>
@@ -304,7 +304,7 @@ export default function BulkOperationsPage() {
       {/* Action Bar */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 items-start lg:items-center justify-between">
             {/* Filter Buttons */}
             <div className="flex flex-wrap gap-2">
               <Button
@@ -354,7 +354,7 @@ export default function BulkOperationsPage() {
       {selectedPosts.size > 0 && (
         <Card className="border-primary">
           <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-3 sm:gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-3">
                 <AlertCircle className="h-5 w-5 text-primary" />
                 <span className="font-medium text-foreground">
@@ -436,7 +436,7 @@ export default function BulkOperationsPage() {
               {filteredPosts.map(post => (
                 <div
                   key={post.id}
-                  className={`flex items-center gap-4 p-4 border rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 sm:gap-4 p-4 border rounded-lg cursor-pointer transition-colors ${
                     selectedPosts.has(post.id)
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:bg-muted/50'
@@ -472,7 +472,7 @@ export default function BulkOperationsPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3 sm:gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         {formatDate(post.scheduled_for)}

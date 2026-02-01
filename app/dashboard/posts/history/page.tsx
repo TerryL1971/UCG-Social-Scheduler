@@ -77,7 +77,7 @@ export default function PostHistoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
@@ -88,7 +88,7 @@ export default function PostHistoryPage() {
               ← Back to Scheduled
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Post History</h1>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Post History</h1>
           <p className="text-gray-600 mt-1">View your posted and failed posts</p>
         </div>
 
@@ -115,7 +115,7 @@ export default function PostHistoryPage() {
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+                className="bg-white rounded-lg shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">

@@ -337,10 +337,10 @@ export default function CreatePostPage() {
   const selectedGroupData = groups.find(g => g.id === selectedGroup)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 px-4">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-4 sm:space-y-6 px-4">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-4 sm:p-6 text-white">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-4 sm:p-4 sm:p-6 text-white">
+        <h1 className="text-xl sm:text-2xl md:text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
           <Sparkles className="w-8 h-8" />
           Create Post
         </h1>
@@ -350,7 +350,7 @@ export default function CreatePostPage() {
       </div>
 
       {/* Step 1: Select Group */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Users className="w-6 h-6 text-red-600" />
           Step 1: Select Facebook Group
@@ -378,7 +378,7 @@ export default function CreatePostPage() {
       </div>
 
       {/* Step 2: Post Type & Details */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Wand2 className="w-6 h-6 text-red-600" />
           Step 2: Choose Post Type & Enter Details (Optional - for AI Generation)
@@ -428,7 +428,7 @@ export default function CreatePostPage() {
         {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
           <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
             <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3 sm:gap-4">
               <input
                 type="text"
                 value={vehicleData.make}
@@ -550,7 +550,7 @@ export default function CreatePostPage() {
       </button>
 
       {/* Content Editor - Always visible or after generation */}
-      <div id="preview-section" className="bg-white rounded-lg shadow-sm p-6">
+      <div id="preview-section" className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Eye className="w-6 h-6 text-red-600" />
           Step 3: Post Content
@@ -584,12 +584,12 @@ export default function CreatePostPage() {
       {editedContent && (
         <>
           {/* Schedule Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Calendar className="w-6 h-6 text-red-600" />
               Step 4: Schedule Post (Optional)
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date
@@ -630,7 +630,7 @@ export default function CreatePostPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3 sm:gap-4">
             <button
               onClick={handleSaveAsTemplate}
               disabled={loading}

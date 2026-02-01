@@ -145,7 +145,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-4 sm:py-4 sm:py-8 max-w-4xl">
         <Skeleton className="h-8 w-32 mb-6" />
         <Card>
           <CardHeader>
@@ -162,7 +162,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
 
   if (!post) {
     return (
-      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-4 sm:py-4 sm:py-8 max-w-4xl">
         <Card>
           <CardContent className="text-center py-12">
             <XCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -180,7 +180,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
   const statusColor = getStatusColor(post.status);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
       {/* Back Button */}
       <Button
         variant="ghost"
@@ -194,7 +194,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
       {/* Main Post Card */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-3 sm:gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <CardTitle>{post.facebook_groups.name}</CardTitle>
@@ -205,7 +205,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
                   <Badge variant="error" dot>Overdue</Badge>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-3 sm:gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
                   {formatDate(post.scheduled_for)}
@@ -230,9 +230,9 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 sm:space-y-6">
+        <CardContent className="space-y-4 sm:space-y-4 sm:space-y-6">
           {/* Post Details */}
-          <div className="grid gap-4">
+          <div className="grid gap-3 sm:gap-4">
             {post.target_audience && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">
@@ -291,7 +291,7 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
           )}
 
           {/* Metadata */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground pt-4 border-t">
+          <div className="flex items-center gap-3 sm:gap-4 text-xs text-muted-foreground pt-4 border-t">
             <span>Created {formatDate(post.created_at)}</span>
             {post.reminder_sent && (
               <span className="flex items-center gap-1">

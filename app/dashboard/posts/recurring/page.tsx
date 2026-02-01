@@ -188,10 +188,10 @@ export default function RecurringPostsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg p-6 text-white">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg p-4 sm:p-6 text-white">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
           <RotateCw className="w-8 h-8" />
           Recurring Posts
         </h1>
@@ -201,13 +201,13 @@ export default function RecurringPostsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Active Series</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-purple-600">
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-purple-600">
               {series.filter(s => s.status !== 'cancelled' && s.status !== 'paused').length}
             </p>
           </CardContent>
@@ -217,7 +217,7 @@ export default function RecurringPostsPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Total Series</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-gray-900">{series.length}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">{series.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -225,7 +225,7 @@ export default function RecurringPostsPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Paused</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-gray-600">
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-600">
               {series.filter(s => s.status === 'paused').length}
             </p>
           </CardContent>
@@ -235,7 +235,7 @@ export default function RecurringPostsPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Total Occurrences</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-600">
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-600">
               {series.reduce((sum, s) => sum + s.occurrences.length, 0)}
             </p>
           </CardContent>
@@ -286,7 +286,7 @@ export default function RecurringPostsPage() {
                           {getPatternDisplay(item.recurrence_pattern)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-3 sm:gap-4 text-sm text-gray-600">
                         <span className="capitalize">{item.post_type.replace(/_/g, ' ')}</span>
                         <span>•</span>
                         <span>{completedCount} completed</span>

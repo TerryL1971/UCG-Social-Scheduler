@@ -270,7 +270,7 @@ function SchedulePageContent() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-4 sm:p-6">
         <div className="animate-pulse">Loading groups...</div>
       </div>
     )
@@ -279,7 +279,7 @@ function SchedulePageContent() {
   const selectedGroup = groups.find(g => g.id === selectedGroupId)
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
       <div className="mb-6">
         <button
           onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
@@ -288,7 +288,7 @@ function SchedulePageContent() {
           <ArrowLeft className="w-4 h-4" />
           {isEditMode ? 'Back to Violations' : 'Back to Posts'}
         </button>
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3">
           <Calendar className="w-8 h-8 text-blue-600" />
           {isEditMode ? 'Edit & Reschedule Post' : 'Schedule Post for Future Generation'}
         </h1>
@@ -333,7 +333,7 @@ function SchedulePageContent() {
             <Sparkles className="w-5 h-5 text-purple-600" />
             Post Type
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
               { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
@@ -375,7 +375,7 @@ function SchedulePageContent() {
         {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
           <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
             <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <input
                 type="text"
                 value={vehicleData.make}
@@ -497,7 +497,7 @@ function SchedulePageContent() {
             <Calendar className="w-5 h-5 text-green-600" />
             When to Generate & Post
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
               <input
@@ -535,7 +535,7 @@ function SchedulePageContent() {
           </div>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex gap-3 sm:gap-4">
           <button
             onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
             className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
@@ -568,7 +568,7 @@ function SchedulePageContent() {
 
       {showViolationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
                 <svg className="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -622,7 +622,7 @@ function SchedulePageContent() {
 export default function CreateSchedulePage() {
   return (
     <Suspense fallback={
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-4 sm:p-6">
         <div className="animate-pulse">Loading...</div>
       </div>
     }>

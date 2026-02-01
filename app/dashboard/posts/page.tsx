@@ -259,11 +259,11 @@ export default function PostsDashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-4 sm:space-y-6">
       {/* Header - Mobile Optimized */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Scheduled Posts</h1>
+          <h1 className="text-xl sm:text-2xl md:text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Scheduled Posts</h1>
           <p className="mt-1 text-sm sm:text-base text-gray-600">
             Manage your upcoming posts and posting history
           </p>
@@ -279,8 +279,8 @@ export default function PostsDashboardPage() {
       </div>
 
       {/* Stats Cards - Mobile: 2 cols, Desktop: 4 cols */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-yellow-500">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-4 sm:p-6 border-l-4 border-yellow-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600">Scheduled</p>
@@ -291,7 +291,7 @@ export default function PostsDashboardPage() {
             <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-500 shrink-0" />
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-green-500">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-4 sm:p-6 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600">Content Ready</p>
@@ -302,7 +302,7 @@ export default function PostsDashboardPage() {
             <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 shrink-0" />
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-blue-500">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-4 sm:p-6 border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600">Posted</p>
@@ -313,7 +313,7 @@ export default function PostsDashboardPage() {
             <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 shrink-0" />
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-gray-500">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-4 sm:p-6 border-l-4 border-gray-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm text-gray-600">Total</p>
@@ -347,9 +347,9 @@ export default function PostsDashboardPage() {
           {schedules.map((schedule) => (
             <div
               key={schedule.id}
-              className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-2 border-gray-200 hover:border-red-300 transition-colors"
+              className="bg-white rounded-lg shadow-sm p-4 sm:p-4 sm:p-6 border-2 border-gray-200 hover:border-red-300 transition-colors"
             >
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
                   {/* Badges Row */}
                   <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -367,7 +367,7 @@ export default function PostsDashboardPage() {
                   </div>
 
                   {/* Info Row - Stack on mobile */}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:p-6 mb-3">
                     <div className="flex items-center gap-2 text-gray-900">
                       <Users className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 shrink-0" />
                       <span className="font-semibold text-sm sm:text-base truncate">{schedule.facebook_groups.name}</span>
@@ -490,7 +490,7 @@ export default function PostsDashboardPage() {
       {showContentModal && selectedSchedule && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-lg w-full max-w-full sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-gray-200">
+            <div className="p-4 sm:p-4 sm:p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0 mr-4">
                   <h2 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">Generated Content</h2>
@@ -507,7 +507,7 @@ export default function PostsDashboardPage() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+            <div className="p-4 sm:p-4 sm:p-6 overflow-y-auto flex-1">
               <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
                 <pre className="whitespace-pre-wrap font-sans text-gray-900 text-sm leading-relaxed">
                   {selectedSchedule.generated_content}
@@ -521,7 +521,7 @@ export default function PostsDashboardPage() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3">
+            <div className="p-4 sm:p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
                   if (selectedSchedule.generated_content) {
