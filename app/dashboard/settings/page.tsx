@@ -2,12 +2,15 @@
 
 'use client'
 
+import { Eye, EyeOff, Lock } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Bell, Mail, User, Save, CheckCircle, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import router from 'next/router'
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -17,6 +20,77 @@ export default function SettingsPage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [emailNotifications, setEmailNotifications] = useState(true)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+    // Validation
+    if (newPassword.length < 8) {
+      toast.warning('New password must be at least 8 characters')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.warning('New passwords do not match')
+      return
+    }
+
+    if (!confirm('Change your password? You will need to log in again.')) {
+      return
+    }
+
+    setChangingPassword(true)
+
+    try {
+      // Verify current password by attempting to sign in
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.email) throw new Error('No user found')
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword
+      })
+
+      if (signInError) {
+        throw new Error('Current password is incorrect')
+      }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (updateError) throw updateError
+
+      toast.success('Password changed successfully!', {
+        description: 'Please log in with your new password'
+      })
+
+      // Clear form
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+
+      // Sign out and redirect to login
+      await supabase.auth.signOut()
+      router.push('/login')
+
+    } catch (err) {
+      const error = err as Error
+      toast.error('Failed to change password', {
+        description: error.message
+      })
+    } finally {
+      setChangingPassword(false)
+    }
+}
 
   const supabase = createClient()
 
@@ -54,6 +128,135 @@ export default function SettingsPage() {
       setSaving(false)
     }
   }
+
+  {/* Change Password Section */}
+  <div className="bg-white rounded-lg shadow-sm p-6 border-2 border-gray-200">
+    <div className="flex items-center gap-3 mb-6">
+      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+        <Lock className="w-6 h-6 text-red-600" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-gray-900">Change Password</h2>
+        <p className="text-sm text-gray-600">Update your account password</p>
+      </div>
+    </div>
+
+    <form onSubmit={handleChangePassword} className="space-y-4">
+      {/* Current Password */}
+      <div>
+        <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+          Current Password
+        </label>
+        <div className="relative">
+          <input
+            id="currentPassword"
+            type={showCurrentPassword ? 'text' : 'password'}
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Enter current password"
+            required
+            disabled={changingPassword}
+            className="w-full px-4 py-3 pr-12 min-h-[44px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+          />
+          <button
+            type="button"
+            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            tabIndex={-1}
+          >
+            {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* New Password */}
+      <div>
+        <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+          New Password
+        </label>
+        <div className="relative">
+          <input
+            id="newPassword"
+            type={showNewPassword ? 'text' : 'password'}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Enter new password (min 8 characters)"
+            required
+            minLength={8}
+            disabled={changingPassword}
+            className="w-full px-4 py-3 pr-12 min-h-[44px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+          />
+          <button
+            type="button"
+            onClick={() => setShowNewPassword(!showNewPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            tabIndex={-1}
+          >
+            {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm New Password */}
+      <div>
+        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+          Confirm New Password
+        </label>
+        <div className="relative">
+          <input
+            id="confirmPassword"
+            type={showConfirmPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirm new password"
+            required
+            minLength={8}
+            disabled={changingPassword}
+            className="w-full px-4 py-3 pr-12 min-h-[44px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            tabIndex={-1}
+          >
+            {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Password Requirements */}
+      {newPassword && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <p className="text-xs font-medium text-gray-700 mb-2">Password Requirements:</p>
+          <ul className="text-xs text-gray-600 space-y-1">
+            <li className={newPassword.length >= 8 ? 'text-green-600' : ''}>
+              • At least 8 characters {newPassword.length >= 8 && '✓'}
+            </li>
+            <li className={newPassword === confirmPassword && newPassword ? 'text-green-600' : ''}>
+              • Passwords match {newPassword === confirmPassword && newPassword && '✓'}
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {/* Warning */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+        <p className="text-sm text-yellow-800">
+          ⚠️ <strong>Important:</strong> After changing your password, you will be logged out and need to sign in again with your new password.
+        </p>
+      </div>
+
+      {/* Submit Button */}
+      <button
+        type="submit"
+        disabled={changingPassword || newPassword.length < 8 || newPassword !== confirmPassword}
+        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {changingPassword ? 'Changing Password...' : 'Change Password'}
+      </button>
+    </form>
+  </div>
 
   const handleTestEmail = async () => {
     setTestingEmail(true)
