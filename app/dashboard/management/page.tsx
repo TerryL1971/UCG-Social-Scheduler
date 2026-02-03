@@ -19,6 +19,7 @@ import {
   ChevronUp
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 type Salesperson = {
   id: string
@@ -162,7 +163,7 @@ export default function ManagementDashboard() {
 
   const sendWhatsApp = (phone: string | null | undefined, name: string) => {
     if (!phone) {
-      alert('No phone number on file')
+      toast.warning('No phone number on file')
       return
     }
     const cleanPhone = phone.replace(/[^0-9]/g, '') // Remove all non-numeric characters

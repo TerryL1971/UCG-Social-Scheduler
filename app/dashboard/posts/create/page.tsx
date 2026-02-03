@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye, Copy, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 
 type FacebookGroup = {
   id: string
@@ -143,7 +144,7 @@ export default function CreatePostPage() {
 
   const handleGeneratePost = async () => {
     if (!selectedGroup) {
-      alert('Please select a Facebook group')
+      toast.warning('Please select a Facebook group')
       return
     }
 
@@ -215,13 +216,13 @@ export default function CreatePostPage() {
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
-      alert('Failed to copy to clipboard')
+      toast.info('Failed to copy to clipboard')
     }
   }
 
   const handleSaveAsTemplate = async () => {
     if (!editedContent) {
-      alert('Please generate or enter content first')
+      toast.warning('Please generate or enter content first')
       return
     }
 
@@ -250,10 +251,10 @@ export default function CreatePostPage() {
       
       if (templateError) throw templateError
       
-      alert('Template saved successfully! ✅')
+      toast.success('Template saved successfully!')
     } catch (err) {
       console.error('Error saving template:', err)
-      alert('Failed to save template')
+      toast.info('Failed to save template')
     } finally {
       setLoading(false)
     }
@@ -263,12 +264,12 @@ export default function CreatePostPage() {
     const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
     
     if (!editedContent || !selectedGroup || !scheduledDate || !scheduledTime) {
-      alert('Please fill in all required fields (content, group, date, and time)')
+      toast.warning('Please fill in all required fields (content, group, date, and time)')
       return
     }
     
     if (!timeRegex.test(scheduledTime)) {
-      alert('Invalid time format. Please use HH:MM in 24-hour format (e.g., 14:30, 09:00, 23:45)')
+      toast.warning('Invalid time format. Please use HH:MM in 24-hour format (e.g., 14:30, 09:00, 23:45)')
       return
     }
 
@@ -322,13 +323,13 @@ export default function CreatePostPage() {
 
       console.log('✅ Post saved successfully:', postData)
       
-      alert('Post scheduled successfully! ✅')
+      toast.success('Post scheduled successfully!')
       router.push('/dashboard/posts')
     } catch (err) {
       console.error('❌ Error saving post:', err)
       const errorMsg = err instanceof Error ? err.message : 'Failed to save post'
       setError(errorMsg)
-      alert('Error: ' + errorMsg)
+      toast.error('Error: ' + errorMsg)
     } finally {
       setLoading(false)
     }
@@ -545,8 +546,17 @@ export default function CreatePostPage() {
         disabled={!selectedGroup || generating}
         className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base sm:text-lg"
       >
-        <Sparkles className="w-6 h-6" />
-        {generating ? 'Generating...' : 'Generate Post with AI'}
+        {generating ? (
+          <>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+            Generating with AI...
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-6 h-6" />
+            Generate Post with AI
+          </>
+        )}
       </button>
 
       {/* Content Editor - Always visible or after generation */}
@@ -644,8 +654,17 @@ export default function CreatePostPage() {
               disabled={loading || !scheduledDate || !scheduledTime}
               className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
             >
-              <Calendar className="w-5 h-5" />
-              {loading ? 'Scheduling...' : 'Schedule Post'}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  Scheduling...
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-5 h-5" />
+                  Schedule Post
+                </>
+              )}
             </button>
           </div>
         </>

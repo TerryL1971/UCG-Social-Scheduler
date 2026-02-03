@@ -16,6 +16,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 type Violation = {
   id: string
@@ -110,10 +111,10 @@ export default function MyViolationsPage() {
       if (error) throw error
       
       await fetchViolations()
-      alert('Authorization request sent to your manager!')
+      toast.success('Authorization request sent to your manager!')
     } catch (err) {
       console.error('Error requesting authorization:', err)
-      alert('Failed to request authorization')
+      toast.info('Failed to request authorization')
     } finally {
       setActionLoading(null)
     }
@@ -122,7 +123,7 @@ export default function MyViolationsPage() {
   const handleAddJustification = async (violationId: string) => {
     const justification = justificationText[violationId]
     if (!justification?.trim()) {
-      alert('Please enter a justification')
+      toast.warning('Please enter a justification')
       return
     }
 
@@ -140,10 +141,10 @@ export default function MyViolationsPage() {
       
       await fetchViolations()
       setJustificationText(prev => ({ ...prev, [violationId]: '' }))
-      alert('Justification added successfully!')
+      toast.success('Justification added successfully!')
     } catch (err) {
       console.error('Error adding justification:', err)
-      alert('Failed to add justification')
+      toast.info('Failed to add justification')
     } finally {
       setActionLoading(null)
     }
@@ -164,10 +165,10 @@ export default function MyViolationsPage() {
       if (error) throw error
       
       await fetchViolations()
-      alert('Post deleted successfully')
+      toast.success('Post deleted successfully')
     } catch (err) {
       console.error('Error deleting post:', err)
-      alert('Failed to delete post')
+      toast.info('Failed to delete post')
     } finally {
       setActionLoading(null)
     }
@@ -230,12 +231,12 @@ export default function MyViolationsPage() {
 
       if (updateError) throw updateError
 
-      alert('Content generated successfully! ✅')
+      toast.success('Content generated successfully!')
       await fetchViolations()
       
     } catch (error: any) {
       console.error('Error generating content:', error)
-      alert(`Failed to generate content: ${error.message}`)
+      toast.error(`Failed to generate content: ${error.message}`)
     } finally {
       setActionLoading(null)
     }

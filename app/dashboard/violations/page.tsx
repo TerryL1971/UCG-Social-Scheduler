@@ -175,10 +175,10 @@ export default function ViolationsPage() {
       if (error) throw error
       
       await fetchViolations()
-      alert('Authorization approved!')
+      toast.success('Authorization approved!')
     } catch (err) {
       console.error('Error approving authorization:', err)
-      alert('Failed to approve authorization')
+      toast.info('Failed to approve authorization')
     } finally {
       setActionLoading(null)
     }
@@ -202,10 +202,10 @@ export default function ViolationsPage() {
       if (error) throw error
       
       await fetchViolations()
-      alert('Authorization denied. Salesperson has been notified.')
+      toast.info('Authorization denied. Salesperson has been notified.')
     } catch (err) {
       console.error('Error denying authorization:', err)
-      alert('Failed to deny authorization')
+      toast.info('Failed to deny authorization')
     } finally {
       setActionLoading(null)
     }

@@ -20,6 +20,8 @@ import {
   Calendar
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { PostsListSkeleton } from '@/components/ui/LoadingSkeletons'
+import { toast } from 'sonner';
 
 interface Post {
   id: string;
@@ -66,7 +68,7 @@ export default function BulkOperationsPage() {
       setPosts(data || []);
     } catch (error) {
       console.error('Error loading posts:', error);
-      alert('Failed to load posts');
+      toast.info('Failed to load posts');
     } finally {
       setLoading(false);
     }
@@ -100,7 +102,7 @@ export default function BulkOperationsPage() {
 
   async function bulkMarkPosted() {
     if (selectedPosts.size === 0) {
-      alert('Please select posts to mark as posted');
+      toast.warning('Please select posts to mark as posted');
       return;
     }
 
@@ -124,7 +126,7 @@ export default function BulkOperationsPage() {
       await loadPosts();
     } catch (error) {
       console.error('Error marking posts:', error);
-      alert('Failed to mark posts as posted');
+      toast.info('Failed to mark posts as posted');
     } finally {
       setActionLoading(false);
     }
@@ -132,7 +134,7 @@ export default function BulkOperationsPage() {
 
   async function bulkRegenerateContent() {
     if (selectedPosts.size === 0) {
-      alert('Please select posts to regenerate');
+      toast.warning('Please select posts to regenerate');
       return;
     }
 
@@ -164,7 +166,7 @@ export default function BulkOperationsPage() {
       await loadPosts();
     } catch (error) {
       console.error('Error regenerating:', error);
-      alert('Bulk regeneration failed');
+      toast.info('Bulk regeneration failed');
     } finally {
       setActionLoading(false);
     }
@@ -172,7 +174,7 @@ export default function BulkOperationsPage() {
 
   async function bulkDelete() {
     if (selectedPosts.size === 0) {
-      alert('Please select posts to delete');
+      toast.warning('Please select posts to delete');
       return;
     }
 
@@ -193,7 +195,7 @@ export default function BulkOperationsPage() {
       await loadPosts();
     } catch (error) {
       console.error('Error deleting posts:', error);
-      alert('Failed to delete posts');
+      toast.info('Failed to delete posts');
     } finally {
       setActionLoading(false);
     }
@@ -202,7 +204,7 @@ export default function BulkOperationsPage() {
   async function exportToCSV() {
     const filtered = getFilteredPosts();
     if (filtered.length === 0) {
-      alert('No posts to export');
+      toast.warning('No posts to export');
       return;
     }
 
@@ -230,14 +232,7 @@ export default function BulkOperationsPage() {
   const allSelected = filteredPosts.length > 0 && filteredPosts.every(p => selectedPosts.has(p.id));
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-          <p className="text-muted-foreground">Loading posts...</p>
-        </div>
-      </div>
-    );
+    return <PostsListSkeleton />
   }
 
   return (

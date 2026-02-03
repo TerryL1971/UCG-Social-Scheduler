@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 type Territory = {
   id: string
@@ -157,7 +158,7 @@ export default function GroupsPage() {
     if (userRole === 'salesperson' && formData.territory_id) {
       const approvedTerritoryIds = territories.map(t => t.id)
       if (!approvedTerritoryIds.includes(formData.territory_id)) {
-        alert('You can only create groups in your approved territories')
+        toast.success('You can only create groups in your approved territories')
         return
       }
     }
@@ -186,7 +187,7 @@ export default function GroupsPage() {
 
       if (error) {
         console.error('Error adding group:', error)
-        alert('Failed to add group: ' + (error.message || 'Unknown error'))
+        toast.error('Failed to add group: ' + (error.message || 'Unknown error'))
       } else {
         setShowAddForm(false)
         setFormData({
@@ -203,7 +204,7 @@ export default function GroupsPage() {
       }
     } catch (err) {
       console.error('Unexpected error:', err)
-      alert('An unexpected error occurred')
+      toast.error('An unexpected error occurred')
     }
   }
 
@@ -217,7 +218,7 @@ export default function GroupsPage() {
 
       if (error) {
         console.error('Error updating group:', error)
-        alert('Failed to update group')
+        toast.info('Failed to update group')
       } else {
         await fetchGroups()
       }
@@ -238,7 +239,7 @@ export default function GroupsPage() {
 
       if (error) {
         console.error('Error deleting group:', error)
-        alert('Failed to delete group')
+        toast.info('Failed to delete group')
       } else {
         await fetchGroups()
       }

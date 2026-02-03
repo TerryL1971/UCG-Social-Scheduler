@@ -5,6 +5,7 @@
 import { createClient } from '@/lib/supabase'
 import { useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export default function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
@@ -33,7 +34,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
         .single()
 
       if (error || !postData) {
-        alert('Post not found or you do not have permission to edit it')
+        toast.info('Post not found or you do not have permission to edit it')
         router.push('/dashboard/my-violations')
         return
       }
@@ -59,7 +60,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
       router.push(`/dashboard/posts/schedule?${params.toString()}`)
     } catch (err) {
       console.error('Error redirecting to schedule:', err)
-      alert('Failed to load post data')
+      toast.info('Failed to load post data')
       router.push('/dashboard/my-violations')
     }
   }

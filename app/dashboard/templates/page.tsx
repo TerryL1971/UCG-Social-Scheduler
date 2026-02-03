@@ -75,7 +75,7 @@ export default function TemplatesPage() {
       .eq('id', id)
 
     if (error) {
-      alert('Failed to delete template')
+      toast.info('Failed to delete template')
     } else {
       fetchTemplates()
     }
@@ -90,7 +90,7 @@ export default function TemplatesPage() {
       .eq('id', template.id)
 
     if (error) {
-      alert('Failed to update sharing settings')
+      toast.info('Failed to update sharing settings')
     } else {
       fetchTemplates()
     }
@@ -307,7 +307,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
 
   const generateWithAI = async () => {
     if (!aiPrompt.trim()) {
-      alert('Please enter a description for your template')
+      toast.warning('Please enter a description for your template')
       return
     }
 
@@ -348,11 +348,11 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
         else if (promptLower.includes('community')) setCategory('community')
         else if (promptLower.includes('promotion')) setCategory('promotion')
       } else {
-        alert('Failed to generate template. Please try again.')
+        toast.info('Failed to generate template. Please try again.')
       }
     } catch (error) {
       console.error('AI generation error:', error)
-      alert('Failed to generate template')
+      toast.info('Failed to generate template')
     } finally {
       setGenerating(false)
     }
@@ -360,7 +360,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
 
   const handleSave = async () => {
     if (!title || !content) {
-      alert('Please fill in all required fields')
+      toast.warning('Please fill in all required fields')
       return
     }
 
@@ -368,7 +368,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
-      alert('You must be logged in')
+      toast.warning('You must be logged in')
       setSaving(false)
       return
     }
@@ -395,7 +395,7 @@ function CreateTemplateModal({ onClose, onSuccess }: { onClose: () => void, onSu
 
     if (error) {
       console.error('Error creating template:', error)
-      alert('Failed to create template')
+      toast.info('Failed to create template')
     } else {
       onSuccess()
     }
@@ -588,7 +588,7 @@ function EditTemplateModal({ template, onClose, onSuccess }: {
 
     if (error) {
       console.error('Error updating template:', error)
-      alert('Failed to update template')
+      toast.info('Failed to update template')
     } else {
       onSuccess()
     }

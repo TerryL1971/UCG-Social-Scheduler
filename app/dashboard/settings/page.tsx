@@ -46,10 +46,10 @@ export default function SettingsPage() {
 
       if (error) throw error
 
-      alert('Settings saved successfully!')
+      toast.success('Settings saved successfully!')
     } catch (error) {
       console.error('Error saving settings:', error)
-      alert('Failed to save settings')
+      toast.info('Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -75,7 +75,7 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Test email error:', error)
-      alert('Failed to send test email. Check console for details.')
+      toast.info('Failed to send test email. Check console for details.')
     } finally {
       setTestingEmail(false)
     }

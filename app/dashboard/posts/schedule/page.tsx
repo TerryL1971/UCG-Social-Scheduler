@@ -149,7 +149,7 @@ function SchedulePageContent() {
       setGroups(flattenedData)
     } catch (error) {
       console.error('Error loading groups:', error)
-      alert('Failed to load groups')
+      toast.info('Failed to load groups')
     } finally {
       setLoading(false)
     }
@@ -181,12 +181,12 @@ function SchedulePageContent() {
     const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
     
     if (!selectedGroupId || !scheduledDate || !scheduledTime) {
-      alert('Please fill in all required fields')
+      toast.warning('Please fill in all required fields')
       return
     }
     
     if (!timeRegex.test(scheduledTime)) {
-      alert('Invalid time format. Please use HH:MM in 24-hour format (e.g., 14:30, 09:00, 23:45)')
+      toast.warning('Invalid time format. Please use HH:MM in 24-hour format (e.g., 14:30, 09:00, 23:45)')
       return
     }
 

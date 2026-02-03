@@ -108,11 +108,11 @@ export default function RecurringPostsPage() {
       })
 
       if (error) throw error
-      alert('Series paused successfully')
+      toast.success('Series paused successfully')
       loadRecurringSeries()
     } catch (err) {
       console.error('Error pausing series:', err)
-      alert('Failed to pause series')
+      toast.info('Failed to pause series')
     }
   }
 
@@ -124,11 +124,11 @@ export default function RecurringPostsPage() {
       })
 
       if (error) throw error
-      alert('Series resumed successfully')
+      toast.success('Series resumed successfully')
       loadRecurringSeries()
     } catch (err) {
       console.error('Error resuming series:', err)
-      alert('Failed to resume series')
+      toast.info('Failed to resume series')
     }
   }
 
@@ -141,11 +141,11 @@ export default function RecurringPostsPage() {
       })
 
       if (error) throw error
-      alert('Series ended successfully')
+      toast.success('Series ended successfully')
       loadRecurringSeries()
     } catch (err) {
       console.error('Error ending series:', err)
-      alert('Failed to end series')
+      toast.info('Failed to end series')
     }
   }
 

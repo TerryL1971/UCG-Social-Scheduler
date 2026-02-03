@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { MapPin, Users, Building2, Edit, Save, X } from 'lucide-react'
 import { TerritoryRequestSystem } from '@/components/TerritoryRequestSystem'
+import { toast } from 'sonner'
 
 interface Territory {
   id: string
@@ -103,7 +104,7 @@ export default function TerritoriesPage() {
       .eq('id', groupId)
 
     if (error) {
-      alert('Failed to update group territory')
+      toast.info('Failed to update group territory')
     } else {
       setEditingGroupId(null)
       fetchData()
@@ -123,7 +124,7 @@ export default function TerritoriesPage() {
         .eq('territory_id', territoryId)
 
       if (error) {
-        alert('Failed to remove territory')
+        toast.info('Failed to remove territory')
       } else {
         fetchData()
       }
@@ -140,7 +141,7 @@ export default function TerritoriesPage() {
         })
 
       if (error) {
-        alert('Failed to add territory')
+        toast.info('Failed to add territory')
       } else {
         fetchData()
       }
@@ -162,7 +163,7 @@ export default function TerritoriesPage() {
       .eq('territory_id', territoryId)
 
     if (error) {
-      alert('Failed to set primary territory')
+      toast.info('Failed to set primary territory')
     } else {
       fetchData()
     }

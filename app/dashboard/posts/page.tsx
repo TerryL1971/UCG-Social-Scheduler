@@ -5,7 +5,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { PostsListSkeleton } from '@/components/ui/LoadingSkeletons'
 import { Calendar, Clock, Users, Eye, RotateCw, CheckCircle, XCircle, Trash2, Plus, Mail } from 'lucide-react'
+import { toast } from 'sonner'
 
 type PostSchedule = {
   id: string
@@ -76,7 +78,7 @@ export default function PostsDashboardPage() {
       setSchedules(transformed as PostSchedule[])
     } catch (error) {
       console.error('Error loading schedules:', error)
-      alert('Failed to load schedules')
+      toast.info('Failed to load schedules')
     } finally {
       setLoading(false)
     }
@@ -99,7 +101,7 @@ export default function PostsDashboardPage() {
         throw new Error(data.error || 'Failed to regenerate content')
       }
 
-      alert('Content regenerated successfully! ✅')
+      toast.success('Content regenerated successfully!')      
       await loadSchedules()
     } catch (error) {
       console.error('Error regenerating:', error)
@@ -111,7 +113,7 @@ export default function PostsDashboardPage() {
 
   const handleSendReminder = async (schedule: PostSchedule) => {
     if (!schedule.generated_content) {
-      alert('No content generated yet. Please regenerate content first.')
+      toast.success('No content generated yet. Please regenerate content first.')
       return
     }
 
@@ -133,7 +135,7 @@ export default function PostsDashboardPage() {
         throw new Error(data.error || 'Failed to send reminder')
       }
 
-      alert('Reminder email sent successfully! ✅ Check your inbox.')
+      toast.success('Reminder email sent successfully! ✅ Check your inbox.')
       await loadSchedules()
     } catch (error) {
       console.error('Error sending reminder:', error)
@@ -159,11 +161,11 @@ export default function PostsDashboardPage() {
 
       if (error) throw error
 
-      alert('Marked as posted! ✅')
+      toast.success('Marked as posted!')      
       await loadSchedules()
     } catch (error) {
       console.error('Error marking as posted:', error)
-      alert('Failed to mark as posted')
+      toast.info('Failed to mark as posted')
     }
   }
 
@@ -180,11 +182,11 @@ export default function PostsDashboardPage() {
 
       if (error) throw error
 
-      alert('Schedule cancelled ✅')
+      toast.success('Schedule cancelled')      
       await loadSchedules()
     } catch (error) {
       console.error('Error cancelling:', error)
-      alert('Failed to cancel schedule')
+      toast.info('Failed to cancel schedule')
     }
   }
 
@@ -201,11 +203,11 @@ export default function PostsDashboardPage() {
 
       if (error) throw error
 
-      alert('Schedule deleted ✅')
+      toast.success('Schedule deleted')      
       await loadSchedules()
     } catch (error) {
       console.error('Error deleting:', error)
-      alert('Failed to delete schedule')
+      toast.info('Failed to delete schedule')
     }
   }
 
@@ -248,14 +250,7 @@ export default function PostsDashboardPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-sm sm:text-base text-gray-600">Loading schedules...</p>
-        </div>
-      </div>
-    )
+    return <PostsListSkeleton />
   }
 
   return (
@@ -526,8 +521,7 @@ export default function PostsDashboardPage() {
                 onClick={() => {
                   if (selectedSchedule.generated_content) {
                     navigator.clipboard.writeText(selectedSchedule.generated_content)
-                    alert('Content copied to clipboard! ✅')
-                  }
+                    toast.success('Content copied to clipboard!')                  }
                 }}
                 className="flex-1 px-6 py-3 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors text-sm sm:text-base"
               >
