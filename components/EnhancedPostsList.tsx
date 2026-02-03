@@ -22,6 +22,7 @@ import {
   Plus
 } from 'lucide-react';
 import { formatDate, copyToClipboard, getStatusColor } from '@/lib/utils';
+import { getUserFriendlyMessage } from '@/lib/errors';
 
 interface Post {
   id: string;
@@ -137,7 +138,8 @@ export function EnhancedPostsList() {
       toast.success('Marked as posted!');
       await loadPosts();
     } catch (error) {
-      toast.error('Failed to mark as posted');
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message);
     } finally {
       setActionLoading(null);
     }

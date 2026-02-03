@@ -21,6 +21,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { formatDate, copyToClipboard, getStatusColor } from '@/lib/utils';
+import { getUserFriendlyMessage } from '@/lib/errors';
 
 interface Post {
   id: string;
@@ -70,7 +71,8 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
       setPost(data);
     } catch (error) {
       console.error('Error loading post:', error);
-      toast.error('Failed to load post');
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message);
       router.push('/dashboard/posts');
     } finally {
       setLoading(false);
@@ -108,7 +110,8 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
       router.push('/dashboard/posts');
     } catch (error) {
       console.error('Error marking as posted:', error);
-      toast.error('Failed to mark as posted');
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message);
     } finally {
       setActionLoading(false);
     }
@@ -137,7 +140,8 @@ export default function ViewPostPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error regenerating:', error);
       toast.dismiss(loadingToast);
-      toast.error('Failed to regenerate content');
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message);
     } finally {
       setActionLoading(false);
     }

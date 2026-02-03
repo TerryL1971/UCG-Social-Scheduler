@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Plus, Users, Globe, Trash2, CheckCircle, XCircle, MapPin, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { getUserFriendlyMessage } from '@/lib/errors'
 
 type Territory = {
   id: string
@@ -202,9 +203,9 @@ export default function GroupsPage() {
         })
         await fetchGroups()
       }
-    } catch (err) {
-      console.error('Unexpected error:', err)
-      toast.error('An unexpected error occurred')
+    } catch (error) {
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message)
     }
   }
 

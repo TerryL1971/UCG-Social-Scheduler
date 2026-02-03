@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye, Copy, FileText } from 'lucide-react'
 import { toast } from 'sonner'
+import { getUserFriendlyMessage } from '@/lib/errors'
 
 type FacebookGroup = {
   id: string
@@ -329,7 +330,8 @@ export default function CreatePostPage() {
       console.error('❌ Error saving post:', err)
       const errorMsg = err instanceof Error ? err.message : 'Failed to save post'
       setError(errorMsg)
-      toast.error('Error: ' + errorMsg)
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message)
     } finally {
       setLoading(false)
     }

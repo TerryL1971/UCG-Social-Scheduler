@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { getUserFriendlyMessage } from '@/lib/errors'
 
 type Violation = {
   id: string
@@ -236,7 +237,8 @@ export default function MyViolationsPage() {
       
     } catch (error: any) {
       console.error('Error generating content:', error)
-      toast.error(`Failed to generate content: ${error.message}`)
+      const message = getUserFriendlyMessage(error, 'load schedules')
+      toast.error(message)
     } finally {
       setActionLoading(null)
     }
