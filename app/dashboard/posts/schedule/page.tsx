@@ -4,6 +4,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, Users, MapPin, Sparkles, ArrowLeft } from 'lucide-react'
 
