@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { toast } from 'sonner'
 import { 
   AlertTriangle, 
   CheckCircle, 

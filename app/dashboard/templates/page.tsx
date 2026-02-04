@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -75,7 +76,7 @@ export default function TemplatesPage() {
       .eq('id', id)
 
     if (error) {
-      toast.info('Failed to delete template')
+      toast.error('Failed to delete template')
     } else {
       fetchTemplates()
     }

@@ -151,12 +151,11 @@ export default function SettingsPage() {
           description: data.error || 'Unknown error'
         })
       }
-    } catch (err) {
-      const error = err as Error
+    } catch (error) {
+      console.error('Test email error:', error)
       toast.error('Failed to send test email', {
-        description: error.message
+        description: 'Check console for details'
       })
-      
     } finally {
       setTestingEmail(false)
     }
