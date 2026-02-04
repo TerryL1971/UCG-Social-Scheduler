@@ -6,11 +6,12 @@ import { Eye, EyeOff, Lock } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Bell, Mail, User, Save, CheckCircle, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -150,11 +151,12 @@ export default function SettingsPage() {
           description: data.error || 'Unknown error'
         })
       }
-    } catch (error) {
-      console.error('Test email error:', error)
+    } catch (err) {
+      const error = err as Error
       toast.error('Failed to send test email', {
-        description: 'Check console for details'
+        description: error.message
       })
+      
     } finally {
       setTestingEmail(false)
     }
