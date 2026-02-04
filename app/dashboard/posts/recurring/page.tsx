@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { RotateCw, Pause, Play, StopCircle, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 
