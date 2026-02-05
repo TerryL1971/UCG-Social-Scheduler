@@ -24,6 +24,7 @@ import {
   RotateCw,
   Sparkles,
   Layers,
+  CreditCard,
 } from 'lucide-react'
 import PWARegister from '../pwa-register'
 import { log } from 'console'
@@ -253,6 +254,7 @@ export default function DashboardLayout({
     { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Territories', href: '/dashboard/territories', icon: MapPin, roles: ['salesperson', 'manager', 'admin', 'owner'] },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'owner'] },
+    { name: 'Credits', href: '/dashboard/credits', icon: CreditCard, roles: ['salesperson', 'manager', 'admin', 'owner'] }, // ← ADD THIS
     { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, roles: ['salesperson'] },
     { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, roles: ['manager', 'admin', 'owner'] },
     { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'owner'] },

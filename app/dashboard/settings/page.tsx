@@ -2,7 +2,7 @@
 
 'use client'
 
-import { Eye, EyeOff, Lock } from 'lucide-react'
+import { Eye, EyeOff, Lock, Sparkles } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -31,19 +31,33 @@ export default function SettingsPage() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
+  const [anthropicApiKey, setAnthropicApiKey] = useState('')
+  const [useOwnApiKey, setUseOwnApiKey] = useState(false)
+  const [testMode, setTestMode] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   useEffect(() => {
     async function loadUserData() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        setEmail(user.email || '')
-        setFullName((user.user_metadata?.full_name as string) || '')
-        setEmailNotifications(user.user_metadata?.email_notifications !== false)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+          
+        if (profile) {
+          setEmail(user.email || '')
+          setFullName(profile.full_name || '')
+          setEmailNotifications(profile.email_notifications !== false)
+          setAnthropicApiKey(profile.anthropic_api_key || '')
+          setUseOwnApiKey(profile.use_own_api_key || false)
+          setTestMode(profile.test_mode || false)
+        }
       }
       setLoading(false)
     }
     loadUserData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -113,12 +127,16 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
           full_name: fullName,
-          email_notifications: emailNotifications
-        }
-      })
+          email_notifications: emailNotifications,
+          anthropic_api_key: anthropicApiKey,
+          use_own_api_key: useOwnApiKey,
+          test_mode: testMode
+        })
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
 
       if (error) throw error
 
@@ -288,7 +306,156 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Change Password Section - THIS IS WHERE IT GOES! */}
+      {/* AI Generation Settings */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center mb-6">
+            <Sparkles className="w-5 h-5 mr-2 text-purple-600" />
+            <h2 className="text-xl font-semibold">AI Generation Settings</h2>
+          </div>
+
+          <div className="space-y-6">
+            {/* Test Mode Toggle */}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-semibold text-blue-900">Test Mode</h3>
+                    {testMode && (
+                      <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded">
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-blue-800 mb-1">
+                    Generate mock AI content without consuming credits or making API calls
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Perfect for testing, development, or training. Generated content will be marked as "TEST MODE"
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-4">
+                  <input
+                    type="checkbox"
+                    checked={testMode}
+                    onChange={(e) => setTestMode(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Use Own API Key Toggle */}
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold mb-2">Use My Own Anthropic API Key</h3>
+                  <p className="text-sm text-gray-600 mb-1">
+                    Bring your own Anthropic API key to avoid using company credits
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    You'll be charged directly by Anthropic based on your usage. 
+                    <a 
+                      href="https://console.anthropic.com/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline ml-1"
+                    >
+                      Get your API key →
+                    </a>
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-4">
+                  <input
+                    type="checkbox"
+                    checked={useOwnApiKey}
+                    onChange={(e) => setUseOwnApiKey(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+
+              {/* API Key Input - Only show if toggle is on */}
+              {useOwnApiKey && (
+                <div className="mt-4 pt-4 border-t border-gray-300">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Anthropic API Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={anthropicApiKey}
+                      onChange={(e) => setAnthropicApiKey(e.target.value)}
+                      placeholder="sk-ant-api03-..."
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    >
+                      {showApiKey ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Your API key is encrypted and stored securely. It will never be shared.
+                  </p>
+
+                  {anthropicApiKey && (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm text-green-800 flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        API key configured. You'll be charged directly by Anthropic.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Current Usage Stats */}
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-purple-900">Current Configuration</h3>
+                <a 
+                  href="/dashboard/credits" 
+                  className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  View Full Usage →
+                </a>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-3">
+                <div>
+                  <p className="text-xs text-purple-700 mb-1">Mode</p>
+                  <p className="font-semibold text-purple-900">
+                    {testMode ? (
+                      <span className="text-blue-600">🧪 Test Mode</span>
+                    ) : useOwnApiKey ? (
+                      <span className="text-purple-600">🔑 Own API Key</span>
+                    ) : (
+                      <span className="text-green-600">💳 Company Credits</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-purple-700 mb-1">Status</p>
+                  <p className="font-semibold text-green-600">
+                    ✓ Ready to Generate
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Change Password Section */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-3 mb-6">

@@ -2,10 +2,18 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase'
+
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
+
+// Cost calculation constants
+const COST_PER_1K_INPUT_TOKENS = 0.003 // €0.003 per 1K input tokens (Claude Sonnet)
+const COST_PER_1K_OUTPUT_TOKENS = 0.015 // €0.015 per 1K output tokens
+const ESTIMATED_INPUT_TOKENS = 300 // Average input tokens per request
+const ESTIMATED_OUTPUT_TOKENS = 200 // Average output tokens per response
 
 export async function POST(request: NextRequest) {
   try {
