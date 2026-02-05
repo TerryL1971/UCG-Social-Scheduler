@@ -202,7 +202,7 @@ export default function CreditsPage() {
             <div className="flex-1">
               <p className="text-sm text-gray-600 mb-2">Current Balance</p>
               <p className="text-5xl font-bold text-gray-900">
-                €{credits?.balance.toFixed(4) || '0.0000'}
+                €{credits?.balance.toFixed(2) || '0.0000'}
               </p>
               <p className="text-sm text-gray-600 mt-3">
                 ≈ <strong>{estimatedGenerationsRemaining}</strong> AI generations remaining
@@ -262,7 +262,7 @@ export default function CreditsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Spent</p>
-                <p className="text-2xl font-bold">€{credits?.total_spent.toFixed(4) || '0.0000'}</p>
+                <p className="text-2xl font-bold">€{credits?.total_spent.toFixed(2) || '0.0000'}</p>
               </div>
               <TrendingDown className="w-8 h-8 text-red-600" />
             </div>
@@ -382,10 +382,10 @@ export default function CreditsPage() {
                     <p className={`text-lg font-bold ${
                       tx.amount > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {tx.amount > 0 ? '+' : ''}€{Math.abs(tx.amount).toFixed(4)}
+                      {tx.amount > 0 ? '+' : ''}€{Math.abs(tx.amount).toFixed(2)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Balance: €{tx.balance_after.toFixed(4)}
+                      Balance: €{tx.balance_after.toFixed(2)}
                     </p>
                   </div>
                 </div>
