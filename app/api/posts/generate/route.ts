@@ -1,33 +1,47 @@
-// app/api/posts/generate/route.ts
+// app/api/posts/generate/route.ts - MERGED VERSION with Credit Management
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase'
-
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 // Cost calculation constants
-const COST_PER_1K_INPUT_TOKENS = 0.003 // €0.003 per 1K input tokens (Claude Sonnet)
+const COST_PER_1K_INPUT_TOKENS = 0.003 // €0.003 per 1K input tokens
 const COST_PER_1K_OUTPUT_TOKENS = 0.015 // €0.015 per 1K output tokens
-const ESTIMATED_INPUT_TOKENS = 300 // Average input tokens per request
-const ESTIMATED_OUTPUT_TOKENS = 200 // Average output tokens per response
+const ESTIMATED_INPUT_TOKENS = 300
+const ESTIMATED_OUTPUT_TOKENS = 200
 
 export async function POST(request: NextRequest) {
+  const supabase = await createServerSupabaseClient()
+  
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY is not set')
-      return NextResponse.json(
-        { 
-          error: 'Configuration error', 
-          details: 'Anthropic API key is not configured. Please check your environment variables.' 
-        },
-        { status: 500 }
-      )
+    // 1. AUTHENTICATION CHECK
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ 
+        error: 'Unauthorized',
+        details: 'Please log in to generate content'
+      }, { status: 401 })
     }
 
+    // 2. GET USER PROFILE (for API key and test mode settings)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('test_mode, use_own_api_key, anthropic_api_key, full_name, email, whatsapp')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile) {
+      return NextResponse.json({ 
+        error: 'Profile not found',
+        details: 'User profile could not be loaded'
+      }, { status: 404 })
+    }
+
+    const isTestMode = profile.test_mode || false
+    const useOwnKey = profile.use_own_api_key || false
+    const userApiKey = profile.anthropic_api_key
+
+    // 3. PARSE REQUEST BODY
     const body = await request.json()
     const { 
       groupName, 
@@ -39,8 +53,7 @@ export async function POST(request: NextRequest) {
       targetAudience,
       additionalContext,
       vehicleData,
-      testimonialData,
-      userProfile
+      testimonialData
     } = body
 
     if (!groupName || !territory) {
@@ -50,6 +63,87 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 4. TEST MODE - RETURN MOCK DATA
+    if (isTestMode) {
+      // Log the test request
+      await supabase.from('api_usage').insert({
+        user_id: user.id,
+        endpoint: 'claude_generate',
+        tokens_used: 0,
+        estimated_cost: 0,
+        request_payload: body,
+        response_success: true,
+        test_mode: true
+      })
+
+      // Return mock content
+      return NextResponse.json({
+        success: true,
+        content: `[TEST MODE] This is mock AI-generated content for testing.
+        
+🎯 Post Type: ${postType}
+📍 Group: ${groupName}
+🗺️ Territory: ${territory}
+
+This content was generated in TEST MODE and did not consume any credits or API calls.
+
+To generate real content, disable Test Mode in your settings.`,
+        tokensUsed: 0,
+        cost: 0,
+        testMode: true,
+        message: 'Test mode active - no credits consumed',
+        metadata: {
+          groupName,
+          territory,
+          groupType,
+          postType,
+          model: 'test-mode',
+          timestamp: new Date().toISOString()
+        }
+      })
+    }
+
+    // 5. DETERMINE WHICH API KEY TO USE
+    let apiKey: string | undefined
+
+    if (useOwnKey && userApiKey) {
+      apiKey = userApiKey
+    } else {
+      apiKey = process.env.ANTHROPIC_API_KEY
+    }
+
+    if (!apiKey) {
+      return NextResponse.json({ 
+        error: 'No API key configured',
+        details: 'Please add your Anthropic API key in settings or contact your administrator',
+        action: 'configure_api_key'
+      }, { status: 402 })
+    }
+
+    // 6. CHECK CREDIT BALANCE (if using system API key)
+    if (!useOwnKey) {
+      const { data: creditData } = await supabase
+        .from('credits')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single()
+
+      const estimatedCost = 
+        (ESTIMATED_INPUT_TOKENS / 1000) * COST_PER_1K_INPUT_TOKENS +
+        (ESTIMATED_OUTPUT_TOKENS / 1000) * COST_PER_1K_OUTPUT_TOKENS
+
+      if (!creditData || creditData.balance < estimatedCost) {
+        return NextResponse.json({ 
+          error: 'Insufficient credits',
+          details: `You need €${estimatedCost.toFixed(4)} to generate this post. Current balance: €${creditData?.balance.toFixed(4) || '0.0000'}`,
+          action: 'purchase_credits',
+          currentBalance: creditData?.balance || 0,
+          requiredAmount: estimatedCost
+        }, { status: 402 })
+      }
+    }
+
+    // 7. BUILD PROMPT (using your existing logic)
     const prompt = buildPrompt({
       groupName,
       groupType,
@@ -61,9 +155,14 @@ export async function POST(request: NextRequest) {
       additionalContext,
       vehicleData,
       testimonialData,
-      userProfile
+      userProfile: {
+        full_name: profile.full_name || 'UCG Sales Team',
+        email: profile.email,
+        whatsapp: profile.whatsapp
+      }
     })
 
+    // 8. CALL CLAUDE API
     console.log('Generating post with Claude:', {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
@@ -73,24 +172,125 @@ export async function POST(request: NextRequest) {
       hasVehicleData: !!vehicleData?.make
     })
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [
-        {
+    const anthropic = new Anthropic({ apiKey })
+
+    let actualInputTokens = 0
+    let actualOutputTokens = 0
+    let generatedContent = ''
+
+    try {
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{
           role: 'user',
           content: prompt
-        }
-      ]
+        }]
+      })
+
+      generatedContent = message.content[0].type === 'text' 
+        ? message.content[0].text 
+        : ''
+
+      actualInputTokens = message.usage?.input_tokens || ESTIMATED_INPUT_TOKENS
+      actualOutputTokens = message.usage?.output_tokens || ESTIMATED_OUTPUT_TOKENS
+
+      if (!generatedContent) {
+        throw new Error('No content generated by AI')
+      }
+
+    } catch (apiError) {
+      // Log failed API call
+      await supabase.from('api_usage').insert({
+        user_id: user.id,
+        endpoint: 'claude_generate',
+        tokens_used: 0,
+        estimated_cost: 0,
+        request_payload: body,
+        response_success: false,
+        error_message: apiError instanceof Error ? apiError.message : 'Unknown error',
+        test_mode: false
+      })
+
+      throw apiError
+    }
+
+    // 9. CALCULATE ACTUAL COST
+    const actualCost = 
+      (actualInputTokens / 1000) * COST_PER_1K_INPUT_TOKENS +
+      (actualOutputTokens / 1000) * COST_PER_1K_OUTPUT_TOKENS
+
+    // 10. DEDUCT CREDITS (if using system key)
+    if (!useOwnKey) {
+      const { data: currentCredits } = await supabase
+        .from('credits')
+        .select('balance, low_balance_notified')
+        .eq('user_id', user.id)
+        .single()
+
+      const newBalance = (currentCredits?.balance || 0) - actualCost
+
+      // Update balance
+      await supabase
+        .from('credits')
+        .update({ 
+          balance: newBalance,
+          total_spent: (currentCredits?.balance || 0) - newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+
+      // Log transaction
+      await supabase
+        .from('credit_transactions')
+        .insert({
+          user_id: user.id,
+          transaction_type: 'usage',
+          amount: -actualCost,
+          balance_after: newBalance,
+          description: `AI post generation - ${actualInputTokens + actualOutputTokens} tokens`,
+          metadata: {
+            input_tokens: actualInputTokens,
+            output_tokens: actualOutputTokens,
+            endpoint: 'claude_generate',
+            post_type: postType,
+            group_name: groupName
+          }
+        })
+
+      // Check for low balance
+      if (newBalance < 1.00 && !currentCredits?.low_balance_notified) {
+        await supabase
+          .from('credits')
+          .update({ low_balance_notified: true })
+          .eq('user_id', user.id)
+      }
+    }
+
+    // 11. LOG API USAGE
+    await supabase.from('api_usage').insert({
+      user_id: user.id,
+      endpoint: 'claude_generate',
+      tokens_used: actualInputTokens + actualOutputTokens,
+      estimated_cost: actualCost,
+      request_payload: {
+        ...body,
+        used_own_key: useOwnKey
+      },
+      response_success: true,
+      test_mode: false
     })
 
-    const generatedContent = message.content[0].type === 'text' 
-      ? message.content[0].text 
-      : ''
-
+    // 12. RETURN SUCCESS
     return NextResponse.json({
       success: true,
       content: generatedContent,
+      tokensUsed: actualInputTokens + actualOutputTokens,
+      inputTokens: actualInputTokens,
+      outputTokens: actualOutputTokens,
+      cost: useOwnKey ? 0 : actualCost,
+      testMode: false,
+      usedOwnKey: useOwnKey,
       metadata: {
         groupName,
         territory,
@@ -113,6 +313,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// YOUR EXISTING buildPrompt FUNCTION (keeping all your logic)
 function buildPrompt(params: {
   groupName: string
   groupType?: string
@@ -305,7 +506,6 @@ ${additionalContext ? `\n📝 ADDITIONAL CONTEXT: ${additionalContext}` : ''}
 
   // VEHICLE SPOTLIGHT POST
   else if (postType === 'vehicle_spotlight') {
-    // Check if vehicle data is missing
     if (!vehicleData || !vehicleData.make) {
       basePrompt += `You are writing a VEHICLE SPOTLIGHT Facebook post for Used Car Guys (UCG), a CAR DEALERSHIP.
 
@@ -457,8 +657,15 @@ Generate the Facebook post now.`
 
 export async function GET() {
   return NextResponse.json({
-    status: 'AI Post Generation API is ready',
+    status: 'AI Post Generation API with Credit Management',
     model: 'claude-sonnet-4',
-    endpoint: '/api/posts/generate'
+    endpoint: '/api/posts/generate',
+    features: [
+      'Credit balance checking',
+      'Test mode support',
+      'User API key support',
+      'Usage tracking',
+      'Transaction logging'
+    ]
   })
 }

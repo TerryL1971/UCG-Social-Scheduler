@@ -127,6 +127,9 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -136,14 +139,16 @@ export default function SettingsPage() {
           use_own_api_key: useOwnApiKey,
           test_mode: testMode
         })
-        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('id', user.id)
 
       if (error) throw error
 
       toast.success('Settings saved successfully!')
     } catch (error) {
       console.error('Error saving settings:', error)
-      toast.error('Failed to save settings')
+      toast.error('Failed to save settings', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      })
     } finally {
       setSaving(false)
     }
