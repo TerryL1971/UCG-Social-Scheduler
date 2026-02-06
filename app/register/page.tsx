@@ -17,11 +17,19 @@ type Dealership = {
   location: string | null
 }
 
+const POSITION_OPTIONS = [
+  { value: 'salesperson', label: 'Salesperson' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'admin', label: 'Administrator' },
+  { value: 'owner', label: 'Owner' },
+]
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [position, setPosition] = useState('')
   const [dealershipId, setDealershipId] = useState('')
   const [dealerships, setDealerships] = useState<Dealership[]>([])
   const [error, setError] = useState('')
@@ -77,6 +85,11 @@ export default function RegisterPage() {
       return
     }
 
+    if (!position) {
+      setError('Please select a position')
+      return
+    }
+
     setLoading(true)
 
     const supabase = createClient()
@@ -99,7 +112,7 @@ export default function RegisterPage() {
         id: authData.user.id,
         email,
         full_name: fullName,
-        role: 'salesperson', // Default role
+        role: position,
         dealership_id: dealershipId,
       })
 
@@ -117,17 +130,18 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
             <Image
               src="/ucg-logo.png"
               alt="UCG Logo"
-              width={120}
-              height={120}
-              style={{ width: 'auto', height: '120px' }}
+              width={240}
+              height={240}
+              priority
               className="object-contain"
+              style={{ width: 'auto', height: '100px' }}
             />
           </div>
           <div className="text-center">
@@ -186,6 +200,26 @@ export default function RegisterPage() {
                 {dealerships.map((dealership) => (
                   <option key={dealership.id} value={dealership.id}>
                     {dealership.name} {dealership.location && `- ${dealership.location}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="position" className="text-sm font-medium text-gray-700">
+                Position
+              </label>
+              <select
+                id="position"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                required
+                disabled={loading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select your position</option>
+                {POSITION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
