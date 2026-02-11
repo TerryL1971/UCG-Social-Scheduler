@@ -68,12 +68,13 @@ export async function POST(request: NextRequest) {
       // Log the test request
       await supabase.from('api_usage').insert({
         user_id: user.id,
-        endpoint: 'claude_generate',
+        action: 'claude_generate',
+        count: 1,
         tokens_used: 0,
         estimated_cost: 0,
         request_payload: body,
         response_success: true,
-        test_mode: true
+        test_mode: false
       })
 
       // Return mock content
@@ -203,7 +204,8 @@ To generate real content, disable Test Mode in your settings.`,
       // Log failed API call
       await supabase.from('api_usage').insert({
         user_id: user.id,
-        endpoint: 'claude_generate',
+        action: 'claude_generate',
+        count: 1,
         tokens_used: 0,
         estimated_cost: 0,
         request_payload: body,
@@ -270,7 +272,8 @@ To generate real content, disable Test Mode in your settings.`,
     // 11. LOG API USAGE
     await supabase.from('api_usage').insert({
       user_id: user.id,
-      endpoint: 'claude_generate',
+      action: 'claude_generate',
+      count: 1,
       tokens_used: actualInputTokens + actualOutputTokens,
       estimated_cost: actualCost,
       request_payload: {
