@@ -70,10 +70,6 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         action: 'claude_generate',
         count: 1,
-        tokens_used: 0,
-        estimated_cost: 0,
-        request_payload: body,
-        response_success: true,
         test_mode: false
       })
 
@@ -206,11 +202,6 @@ To generate real content, disable Test Mode in your settings.`,
         user_id: user.id,
         action: 'claude_generate',
         count: 1,
-        tokens_used: 0,
-        estimated_cost: 0,
-        request_payload: body,
-        response_success: false,
-        error_message: apiError instanceof Error ? apiError.message : 'Unknown error',
         test_mode: false
       })
 
@@ -274,13 +265,6 @@ To generate real content, disable Test Mode in your settings.`,
       user_id: user.id,
       action: 'claude_generate',
       count: 1,
-      tokens_used: actualInputTokens + actualOutputTokens,
-      estimated_cost: actualCost,
-      request_payload: {
-        ...body,
-        used_own_key: useOwnKey
-      },
-      response_success: true,
       test_mode: false
     })
 

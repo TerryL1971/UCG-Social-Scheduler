@@ -37,9 +37,8 @@ type Transaction = {
 
 type Usage = {
   id: string
-  endpoint: string
-  tokens_used: number
-  estimated_cost: number
+  action: string
+  count: number
   test_mode: boolean
   created_at: string
 }
@@ -92,6 +91,9 @@ export default function CreditsPage() {
         .limit(50)
 
       setUsage(usageData || [])
+
+      console.log('Usage data:', usageData)
+      console.log('Current user ID:', user.id) // ADD THIS
 
     } catch (error) {
       console.error('Error loading data:', error)
@@ -155,13 +157,16 @@ export default function CreditsPage() {
     new Date(u.created_at).toDateString() === new Date().toDateString() &&
     !u.test_mode
   )
-  
+
   const thisWeekUsage = usage.filter(u => {
     const usageDate = new Date(u.created_at)
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
     return usageDate >= weekAgo && !u.test_mode
   })
+
+  // Count total API calls instead of trying to sum tokens
+  const totalApiCalls = usage.filter(u => !u.test_mode).length
 
   const estimatedGenerationsRemaining = credits?.balance 
     ? Math.floor(credits.balance / 0.006) // Average cost per generation
@@ -430,17 +435,17 @@ export default function CreditsPage() {
                             TEST MODE
                           </span>
                         ) : (
-                          <span className="capitalize">{u.endpoint.replace('_', ' ')}</span>
+                          <span className="capitalize">{u.action.replace(/_/g, ' ')}</span>
                         )}
                       </td>
                       <td className="text-right p-3">
-                        {u.tokens_used.toLocaleString()}
+                        {u.count || 1} call{u.count > 1 ? 's' : ''}
                       </td>
                       <td className="text-right p-3">
                         {u.test_mode ? (
                           <span className="text-gray-400">€0.0000</span>
                         ) : (
-                          `€${u.estimated_cost.toFixed(4)}`
+                          <span className="text-gray-600">See transactions</span>
                         )}
                       </td>
                       <td className="text-center p-3">
