@@ -60,6 +60,13 @@ export default function TerritoriesPage() {
   const [userRole, setUserRole] = useState<'salesperson' | 'manager' | 'admin' | 'owner'>('salesperson')
   const [groupSearchTerm, setGroupSearchTerm] = useState('')
   const [selectedTerritoryFilter, setSelectedTerritoryFilter] = useState<string>('all')
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false)
+  const [editingTerritoryId, setEditingTerritoryId] = useState<string | null>(null)
+  const [territoryFormData, setTerritoryFormData] = useState({
+    name: '',
+    dealership_id: '',
+  })
+  const [dealerships, setDealerships] = useState<{ id: string; name: string }[]>([])
 
   const supabase = createClient()
 
@@ -85,7 +92,7 @@ export default function TerritoriesPage() {
       }
     }
 
-    const [territoriesRes, groupsRes, profilesRes] = await Promise.all([
+    const [territoriesRes, groupsRes, profilesRes, dealershipsRes] = await Promise.all([
       supabase
         .from('territories')
         .select('*, dealerships(name, location)')
@@ -97,12 +104,17 @@ export default function TerritoriesPage() {
       supabase
         .from('profiles')
         .select('id, full_name, email, dealership_id, profile_territories(territory_id, is_primary)')
-        .order('full_name')
+        .order('full_name'),
+      supabase
+        .from('dealerships')
+        .select('id, name')
+        .order('name')
     ])
 
     if (territoriesRes.data) setTerritories(territoriesRes.data as unknown as Territory[])
     if (groupsRes.data) setGroups(groupsRes.data as unknown as FacebookGroup[])
     if (profilesRes.data) setProfiles(profilesRes.data as unknown as Profile[])
+    if (dealershipsRes.data) setDealerships(dealershipsRes.data)
 
     setLoading(false)
   }
@@ -253,6 +265,83 @@ export default function TerritoriesPage() {
     setCityEdits({})
   }
 
+  const openCreateTerritoryModal = () => {
+    setEditingTerritoryId(null)
+    setTerritoryFormData({ name: '', dealership_id: '' })
+    setShowTerritoryModal(true)
+  }
+
+  const openEditTerritoryModal = (territory: Territory) => {
+    setEditingTerritoryId(territory.id)
+    setTerritoryFormData({
+      name: territory.name,
+      dealership_id: territory.dealership_id,
+    })
+    setShowTerritoryModal(true)
+  }
+
+  const handleSaveTerritory = async () => {
+    if (!territoryFormData.name.trim() || !territoryFormData.dealership_id) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    try {
+      if (editingTerritoryId) {
+        // Update existing territory
+        const { error } = await supabase
+          .from('territories')
+          .update({
+            name: territoryFormData.name.trim(),
+            dealership_id: territoryFormData.dealership_id,
+          })
+          .eq('id', editingTerritoryId)
+
+        if (error) throw error
+        toast.success('Territory updated successfully')
+      } else {
+        // Create new territory
+        const { error } = await supabase
+          .from('territories')
+          .insert({
+            name: territoryFormData.name.trim(),
+            dealership_id: territoryFormData.dealership_id,
+            cities: [],
+            zip_codes: [],
+          })
+
+        if (error) throw error
+        toast.success('Territory created successfully')
+      }
+
+      setShowTerritoryModal(false)
+      fetchData()
+    } catch (error: any) {
+      console.error('Error saving territory:', error)
+      toast.error('Failed to save territory: ' + error.message)
+    }
+  }
+
+  const handleDeleteTerritory = async (territoryId: string, territoryName: string) => {
+    if (!confirm(`Are you sure you want to delete "${territoryName}"? This will unassign all groups and salespeople from this territory.`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('territories')
+        .delete()
+        .eq('id', territoryId)
+
+      if (error) throw error
+      toast.success('Territory deleted successfully')
+      fetchData()
+    } catch (error: any) {
+      console.error('Error deleting territory:', error)
+      toast.error('Failed to delete territory: ' + error.message)
+    }
+  }
+
   const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'owner'
 
   if (loading) {
@@ -261,10 +350,84 @@ export default function TerritoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Territory Management</h1>
-        <p className="text-gray-600 mt-1">Manage territories, assign groups, and control access</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Territory Management</h1>
+          <p className="text-gray-600 mt-1">Manage territories, assign groups, and control access</p>
+        </div>
+        {isManager && (
+          <Button
+            onClick={openCreateTerritoryModal}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Territory
+          </Button>
+        )}
       </div>
+
+      {/* Territory Create/Edit Modal */}
+      {showTerritoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-4">
+                {editingTerritoryId ? 'Edit Territory' : 'Create New Territory'}
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                    Territory Name *
+                  </label>
+                  <Input
+                    value={territoryFormData.name}
+                    onChange={(e) => setTerritoryFormData({ ...territoryFormData, name: e.target.value })}
+                    placeholder="e.g., Wiesbaden Territory"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                    Dealership *
+                  </label>
+                  <select
+                    value={territoryFormData.dealership_id}
+                    onChange={(e) => setTerritoryFormData({ ...territoryFormData, dealership_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a dealership</option>
+                    {dealerships.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  * You can add cities and zip codes after creating the territory
+                </p>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <Button
+                  onClick={handleSaveTerritory}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingTerritoryId ? 'Update' : 'Create'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowTerritoryModal(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Territory Request System - Shows for all users */}
       <TerritoryRequestSystem userRole={userRole} />
@@ -284,13 +447,29 @@ export default function TerritoriesPage() {
               <Card key={territory.id}>
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-3">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-gray-900">{territory.name}</h3>
                       <p className="text-sm text-gray-600">
                         {territory.dealerships?.name}
                       </p>
                     </div>
-                    <MapPin className="w-5 h-5 text-red-600" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openEditTerritoryModal(territory)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Edit territory"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTerritory(territory.id, territory.name)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Delete territory"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <MapPin className="w-5 h-5 text-red-600 ml-1" />
+                    </div>
                   </div>
 
                   <div className="space-y-2 text-sm">
