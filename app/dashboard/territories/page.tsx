@@ -6,7 +6,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
-import { MapPin, Users, Building2, Edit, Save, X } from 'lucide-react'
+import { Input } from '@/components/ui/Input'
+import { MapPin, Users, Building2, Edit, Save, X, Plus, Trash2 } from 'lucide-react'
 import { TerritoryRequestSystem } from '@/components/TerritoryRequestSystem'
 import { toast } from 'sonner'
 
@@ -42,6 +43,11 @@ interface Profile {
   }[]
 }
 
+interface CityEdit {
+  name: string
+  zipCodes: string
+}
+
 export default function TerritoriesPage() {
   const [territories, setTerritories] = useState<Territory[]>([])
   const [groups, setGroups] = useState<FacebookGroup[]>([])
@@ -49,7 +55,11 @@ export default function TerritoriesPage() {
   const [loading, setLoading] = useState(true)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [editingCitiesId, setEditingCitiesId] = useState<string | null>(null)
+  const [cityEdits, setCityEdits] = useState<{ [key: string]: CityEdit[] }>({})
   const [userRole, setUserRole] = useState<'salesperson' | 'manager' | 'admin' | 'owner'>('salesperson')
+  const [groupSearchTerm, setGroupSearchTerm] = useState('')
+  const [selectedTerritoryFilter, setSelectedTerritoryFilter] = useState<string>('all')
 
   const supabase = createClient()
 
@@ -104,10 +114,11 @@ export default function TerritoriesPage() {
       .eq('id', groupId)
 
     if (error) {
-      toast.info('Failed to update group territory')
+      toast.error('Failed to update group territory')
     } else {
       setEditingGroupId(null)
       fetchData()
+      toast.success('Group territory updated')
     }
   }
 
@@ -124,9 +135,10 @@ export default function TerritoriesPage() {
         .eq('territory_id', territoryId)
 
       if (error) {
-        toast.info('Failed to remove territory')
+        toast.error('Failed to remove territory')
       } else {
         fetchData()
+        toast.success('Territory removed')
       }
     } else {
       // Add territory (make it primary if it's the first one)
@@ -141,9 +153,10 @@ export default function TerritoriesPage() {
         })
 
       if (error) {
-        toast.info('Failed to add territory')
+        toast.error('Failed to add territory')
       } else {
         fetchData()
+        toast.success('Territory added')
       }
     }
   }
@@ -163,10 +176,81 @@ export default function TerritoriesPage() {
       .eq('territory_id', territoryId)
 
     if (error) {
-      toast.info('Failed to set primary territory')
+      toast.error('Failed to set primary territory')
     } else {
       fetchData()
+      toast.success('Primary territory updated')
     }
+  }
+
+  const startEditingCities = (territoryId: string, cities: string[], zipCodes: string[]) => {
+    setEditingCitiesId(territoryId)
+    
+    // Create city edits from existing data
+    const edits: CityEdit[] = cities.map((city, index) => ({
+      name: city,
+      zipCodes: zipCodes[index] || ''
+    }))
+    
+    setCityEdits({ ...cityEdits, [territoryId]: edits })
+  }
+
+  const addCity = (territoryId: string) => {
+    const currentEdits = cityEdits[territoryId] || []
+    setCityEdits({
+      ...cityEdits,
+      [territoryId]: [...currentEdits, { name: '', zipCodes: '' }]
+    })
+  }
+
+  const updateCity = (territoryId: string, index: number, field: 'name' | 'zipCodes', value: string) => {
+    const currentEdits = [...(cityEdits[territoryId] || [])]
+    currentEdits[index] = { ...currentEdits[index], [field]: value }
+    setCityEdits({ ...cityEdits, [territoryId]: currentEdits })
+  }
+
+  const removeCity = (territoryId: string, index: number) => {
+    const currentEdits = [...(cityEdits[territoryId] || [])]
+    currentEdits.splice(index, 1)
+    setCityEdits({ ...cityEdits, [territoryId]: currentEdits })
+  }
+
+  const saveCities = async (territoryId: string) => {
+    const edits = cityEdits[territoryId] || []
+    
+    // Filter out empty entries
+    const validEdits = edits.filter(e => e.name.trim() !== '')
+    
+    const cities = validEdits.map(e => e.name.trim())
+    const zipCodes = validEdits.map(e => e.zipCodes.trim())
+
+    console.log('Saving cities:', { territoryId, cities, zipCodes })
+
+    const { data, error } = await supabase
+      .from('territories')
+      .update({
+        cities,
+        zip_codes: zipCodes
+      })
+      .eq('id', territoryId)
+      .select()
+
+    console.log('Save result:', { data, error })
+
+    if (error) {
+      toast.error('Failed to update cities: ' + error.message)
+      console.error('Full error:', error)
+    } else {
+      setEditingCitiesId(null)
+      fetchData()
+      toast.success('Cities updated successfully')
+      console.log('Updated territory:', data)
+    }
+  }
+
+  const cancelEditingCities = () => {
+    setEditingCitiesId(null)
+    setCityEdits({})
   }
 
   const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'owner'
@@ -193,6 +277,8 @@ export default function TerritoriesPage() {
             const territoryUsers = profiles.filter(p => 
               p.profile_territories?.some(pt => pt.territory_id === territory.id)
             )
+            const isEditingCities = editingCitiesId === territory.id
+            const edits = cityEdits[territory.id] || []
 
             return (
               <Card key={territory.id}>
@@ -218,12 +304,97 @@ export default function TerritoriesPage() {
                     </div>
                   </div>
 
-                  {territory.cities && territory.cities.length > 0 && (
-                    <div className="mt-3 pt-3 border-t">
-                      <p className="text-xs text-gray-500 font-medium mb-1">Cities:</p>
-                      <p className="text-xs text-gray-600">{territory.cities.join(', ')}</p>
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-500 font-medium">Cities:</p>
+                      {!isEditingCities && (
+                        <button
+                          onClick={() => startEditingCities(territory.id, territory.cities || [], territory.zip_codes || [])}
+                          className="flex items-center gap-1 h-6 px-2 text-xs font-medium text-blue-600 bg-white border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          <Edit className="w-3 h-3" />
+                          Edit
+                        </button>
+                      )}
                     </div>
-                  )}
+                    
+                    {isEditingCities ? (
+                      <div className="space-y-2">
+                        {edits.map((edit, index) => (
+                          <div key={index} className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={edit.name}
+                                onChange={(e) => updateCity(territory.id, index, 'name', e.target.value)}
+                                placeholder="City name"
+                                className="text-xs h-7"
+                              />
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => removeCity(territory.id, index)}
+                                className="h-7 px-2"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Input
+                              value={edit.zipCodes}
+                              onChange={(e) => updateCity(territory.id, index, 'zipCodes', e.target.value)}
+                              placeholder="Zip codes (comma-separated)"
+                              className="text-xs h-7"
+                            />
+                          </div>
+                        ))}
+                        
+                        <div className="flex gap-1 mt-2">
+                          <Button
+                            size="sm"
+                            onClick={() => addCity(territory.id)}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 h-7 text-xs"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add City
+                          </Button>
+                        </div>
+                        
+                        <div className="flex gap-1 mt-2">
+                          <Button
+                            size="sm"
+                            onClick={() => saveCities(territory.id)}
+                            className="flex-1 bg-green-600 hover:bg-green-700 h-7 text-xs"
+                          >
+                            <Save className="w-3 h-3 mr-1" />
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={cancelEditingCities}
+                            className="flex-1 h-7 text-xs"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-600">
+                        {territory.cities && territory.cities.length > 0 ? (
+                          territory.cities.map((city, idx) => (
+                            <div key={idx} className="mb-1">
+                              <span className="font-medium">{city}</span>
+                              {territory.zip_codes && territory.zip_codes[idx] && (
+                                <span className="text-gray-500"> ({territory.zip_codes[idx]})</span>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-gray-400 italic">No cities assigned</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )
@@ -235,60 +406,108 @@ export default function TerritoriesPage() {
       {isManager && (
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center mb-4">
-              <Building2 className="w-5 h-5 mr-2 text-red-600" />
-              <h2 className="text-xl font-semibold">Facebook Groups</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Building2 className="w-5 h-5 mr-2 text-red-600" />
+                <h2 className="text-xl font-semibold">Facebook Groups</h2>
+                <span className="ml-2 text-sm text-gray-500">({groups.length} total)</span>
+              </div>
+              
+              {/* Filters */}
+              <div className="flex gap-2">
+                <select
+                  value={selectedTerritoryFilter}
+                  onChange={(e) => setSelectedTerritoryFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Territories</option>
+                  <option value="unassigned">Unassigned</option>
+                  {territories.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                
+                <Input
+                  type="text"
+                  placeholder="Search groups..."
+                  value={groupSearchTerm}
+                  onChange={(e) => setGroupSearchTerm(e.target.value)}
+                  className="w-64"
+                />
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {groups.map(group => (
-                <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{group.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      {group.territory_id ? (
-                        <span className="text-green-700">
-                          ✓ {group.territories?.name || 'Assigned'}
-                        </span>
-                      ) : (
-                        <span className="text-red-600">⚠️ No territory assigned</span>
-                      )}
-                    </p>
-                  </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {(() => {
+                // Filter groups
+                let filteredGroups = groups.filter(group => {
+                  // Territory filter
+                  if (selectedTerritoryFilter === 'unassigned' && group.territory_id !== null) return false
+                  if (selectedTerritoryFilter !== 'all' && selectedTerritoryFilter !== 'unassigned' && group.territory_id !== selectedTerritoryFilter) return false
+                  
+                  // Search filter
+                  if (groupSearchTerm && !group.name.toLowerCase().includes(groupSearchTerm.toLowerCase())) return false
+                  
+                  return true
+                })
 
-                  {editingGroupId === group.id ? (
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="px-3 py-1 border border-gray-300 rounded text-sm"
-                        defaultValue={group.territory_id || ''}
-                        onChange={(e) => updateGroupTerritory(group.id, e.target.value || null)}
-                      >
-                        <option value="">None</option>
-                        {territories.map(t => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))}
-                      </select>
+                if (filteredGroups.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-gray-500">
+                      No groups found matching your filters
+                    </div>
+                  )
+                }
+
+                return filteredGroups.map(group => (
+                  <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">{group.name}</h3>
+                      <p className="text-sm text-gray-600">
+                        {group.territory_id ? (
+                          <span className="text-green-700">
+                            ✓ {group.territories?.name || 'Assigned'}
+                          </span>
+                        ) : (
+                          <span className="text-red-600">⚠️ No territory assigned</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {editingGroupId === group.id ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="px-3 py-1 border border-gray-300 rounded text-sm"
+                          defaultValue={group.territory_id || ''}
+                          onChange={(e) => updateGroupTerritory(group.id, e.target.value || null)}
+                        >
+                          <option value="">None</option>
+                          {territories.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setEditingGroupId(null)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setEditingGroupId(null)}
+                        onClick={() => setEditingGroupId(group.id)}
+                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
                       >
-                        <X className="w-4 h-4" />
+                        <Edit className="w-4 h-4 mr-1" />
+                        Assign
                       </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setEditingGroupId(group.id)}
-                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                    >
-                      <Edit className="w-4 h-4 mr-1" />
-                      Assign
-                    </Button>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                ))
+              })()}
             </div>
           </CardContent>
         </Card>
