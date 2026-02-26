@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye, Copy, FileText } from 'lucide-react'
+import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye, Copy, FileText, Image, Video, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { getUserFriendlyMessage } from '@/lib/errors'
 
@@ -15,12 +15,13 @@ type FacebookGroup = {
   territory_id: string
   group_type?: string
   description?: string
+  facebook_url?: string
   territories?: {
     name: string
   }
 }
 
-type PostType = 'brand_awareness' | 'vehicle_spotlight' | 'special_offer' | 'community' | 'testimonial_style'
+type PostType = 'vehicle_spotlight' | 'special_offer' | 'brand_awareness' | 'community' | 'testimonial_style'
 
 type VehicleData = {
   make: string
@@ -57,7 +58,7 @@ export default function CreatePostPage() {
   
   // Form state
   const [selectedGroup, setSelectedGroup] = useState('')
-  const [postType, setPostType] = useState<PostType>('brand_awareness')
+  const [postType, setPostType] = useState<PostType>('vehicle_spotlight')
   const [specialOffer, setSpecialOffer] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
   const [additionalContext, setAdditionalContext] = useState('')
@@ -80,6 +81,10 @@ export default function CreatePostPage() {
     experience: '',
     location: ''
   })
+  
+  // Media uploads
+  const [mediaFiles, setMediaFiles] = useState<File[]>([])
+  const [mediaNote, setMediaNote] = useState('')
   
   const [generatedContent, setGeneratedContent] = useState('')
   const [editedContent, setEditedContent] = useState('')
@@ -119,7 +124,7 @@ export default function CreatePostPage() {
 
       const { data, error: groupsError } = await supabase
         .from('facebook_groups')
-        .select('id, name, territory_id, group_type, description, territories(name)')
+        .select('id, name, territory_id, group_type, description, facebook_url, territories(name)')
         .eq('user_id', user.id)
         .eq('is_active', true)
 
@@ -140,6 +145,40 @@ export default function CreatePostPage() {
       setGroups(flattenedData || [])
     } catch (err) {
       console.error('Error loading groups:', err)
+    }
+  }
+
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const validFiles = files.filter(file => {
+      const isImage = file.type.startsWith('image/')
+      const isVideo = file.type.startsWith('video/')
+      const isUnder50MB = file.size <= 50 * 1024 * 1024
+      
+      if (!isImage && !isVideo) {
+        toast.error(`${file.name}: Only images and videos are allowed`)
+        return false
+      }
+      if (!isUnder50MB) {
+        toast.error(`${file.name}: File must be under 50MB`)
+        return false
+      }
+      return true
+    })
+    
+    setMediaFiles(prev => [...prev, ...validFiles])
+  }
+
+  const removeMedia = (index: number) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const openFacebookGroup = () => {
+    const group = groups.find(g => g.id === selectedGroup)
+    if (group?.facebook_url) {
+      window.open(group.facebook_url, '_blank')
+    } else {
+      toast.error('No Facebook URL set for this group')
     }
   }
 
@@ -173,7 +212,8 @@ export default function CreatePostPage() {
           additionalContext,
           vehicleData: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : undefined,
           testimonialData: postType === 'testimonial_style' ? testimonialData : undefined,
-          userProfile: userProfile
+          userProfile: userProfile,
+          mediaNote: mediaFiles.length > 0 ? mediaNote || `Note: ${mediaFiles.length} photo(s)/video(s) will be attached` : undefined
         })
       })
 
@@ -217,7 +257,7 @@ export default function CreatePostPage() {
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
-      toast.info('Failed to copy to clipboard')
+      toast.error('Failed to copy to clipboard')
     }
   }
 
@@ -255,7 +295,7 @@ export default function CreatePostPage() {
       toast.success('Template saved successfully!')
     } catch (err) {
       console.error('Error saving template:', err)
-      toast.info('Failed to save template')
+      toast.error('Failed to save template')
     } finally {
       setLoading(false)
     }
@@ -291,8 +331,16 @@ export default function CreatePostPage() {
         territory_id: group?.territory_id,
         scheduled_for: scheduledFor.toISOString(),
         content_length: editedContent.length,
-        post_type: postType
+        post_type: postType,
+        has_media: mediaFiles.length > 0
       })
+
+      // TODO: Upload media files to storage and get URLs
+      // For now, just add a note about media in the content
+      let finalContent = editedContent
+      if (mediaFiles.length > 0) {
+        finalContent += `\n\n📎 ${mediaFiles.length} media file(s) attached`
+      }
 
       const { data: postData, error: saveError } = await supabase
         .from('post_schedules')
@@ -300,7 +348,7 @@ export default function CreatePostPage() {
           user_id: user.id,
           group_id: selectedGroup,
           territory_id: group?.territory_id,
-          generated_content: editedContent,
+          generated_content: finalContent,
           scheduled_for: scheduledFor.toISOString(),
           status: 'content_ready',
           reminder_sent: false,
@@ -340,10 +388,10 @@ export default function CreatePostPage() {
   const selectedGroupData = groups.find(g => g.id === selectedGroup)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-4 sm:space-y-6 px-4">
+    <div className="max-w-4xl mx-auto space-y-6 px-4">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-4 sm:p-4 sm:p-6 text-white">
-        <h1 className="text-xl sm:text-2xl md:text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
           <Sparkles className="w-8 h-8" />
           Create Post
         </h1>
@@ -353,46 +401,61 @@ export default function CreatePostPage() {
       </div>
 
       {/* Step 1: Select Group */}
-      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Users className="w-6 h-6 text-red-600" />
           Step 1: Select Facebook Group
         </h2>
-        <select
-          value={selectedGroup}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-          className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
-        >
-          <option value="">Choose a group...</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name} - {group.territories?.name}
-            </option>
-          ))}
-        </select>
-        {selectedGroupData && (
-          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-red-600" />
-              <strong>Territory:</strong> {selectedGroupData.territories?.name}
-            </p>
-          </div>
-        )}
+        <div className="space-y-3">
+          <select
+            value={selectedGroup}
+            onChange={(e) => setSelectedGroup(e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+          >
+            <option value="">Choose a group...</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name} - {group.territories?.name}
+              </option>
+            ))}
+          </select>
+          
+          {selectedGroupData && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-red-600" />
+                  <strong>Territory:</strong> {selectedGroupData.territories?.name}
+                </p>
+              </div>
+              
+              {selectedGroupData.facebook_url && (
+                <button
+                  onClick={openFacebookGroup}
+                  className="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open in Facebook
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Step 2: Post Type & Details */}
-      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Wand2 className="w-6 h-6 text-red-600" />
           Step 2: Choose Post Type & Enter Details (Optional - for AI Generation)
         </h2>
         
         {/* Post Type Selection */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           {[
-            { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
             { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
             { value: 'special_offer', label: 'Special Offer', desc: 'Promote a specific deal' },
+            { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
             { value: 'community', label: 'Community Focus', desc: 'Emphasize military service' },
             { value: 'testimonial_style', label: 'Success Story', desc: 'Share customer experience' }
           ].map((type) => (
@@ -421,7 +484,7 @@ export default function CreatePostPage() {
               value={specialOffer}
               onChange={(e) => setSpecialOffer(e.target.value)}
               placeholder="e.g., 10% off military pricing, free warranty upgrade, $500 trade-in bonus..."
-              className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               rows={2}
             />
           </div>
@@ -431,7 +494,7 @@ export default function CreatePostPage() {
         {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
           <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
             <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <input
                 type="text"
                 value={vehicleData.make}
@@ -501,8 +564,72 @@ export default function CreatePostPage() {
           </div>
         )}
 
+        {/* Media Upload Section */}
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <Image className="w-5 h-5 text-blue-600" />
+            📸 Add Photos or Videos (Optional)
+          </h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Upload photos or videos to include with your post. You'll attach these when posting to Facebook.
+          </p>
+          
+          <div className="space-y-3">
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={handleMediaUpload}
+              className="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-lg file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-600 file:text-white
+                hover:file:bg-blue-700
+                file:cursor-pointer cursor-pointer"
+            />
+            
+            {mediaFiles.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  {mediaFiles.length} file(s) selected:
+                </p>
+                {mediaFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                    <div className="flex items-center gap-2">
+                      {file.type.startsWith('image/') ? (
+                        <Image className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <Video className="w-4 h-4 text-purple-600" />
+                      )}
+                      <span className="text-sm text-gray-700">{file.name}</span>
+                      <span className="text-xs text-gray-500">
+                        ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeMedia(index)}
+                      className="text-red-600 hover:text-red-700 text-sm font-medium"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                
+                <input
+                  type="text"
+                  value={mediaNote}
+                  onChange={(e) => setMediaNote(e.target.value)}
+                  placeholder="Optional: Note about the photos/videos for AI context..."
+                  className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Additional Context */}
-        <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-400">
+        <div className="p-4 bg-orange-50 rounded-lg border-2 border-orange-300">
           <h3 className="font-semibold text-gray-900 text-lg mb-4">📝 Additional Details (Optional)</h3>
           <div className="space-y-4">
             <div>
@@ -546,7 +673,7 @@ export default function CreatePostPage() {
       <button
         onClick={handleGeneratePost}
         disabled={!selectedGroup || generating}
-        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base sm:text-lg"
+        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
       >
         {generating ? (
           <>
@@ -561,8 +688,8 @@ export default function CreatePostPage() {
         )}
       </button>
 
-      {/* Content Editor - Always visible or after generation */}
-      <div id="preview-section" className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      {/* Content Editor */}
+      <div id="preview-section" className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Eye className="w-6 h-6 text-red-600" />
           Step 3: Post Content
@@ -574,12 +701,13 @@ export default function CreatePostPage() {
           value={editedContent}
           onChange={(e) => setEditedContent(e.target.value)}
           placeholder="Your post content will appear here... or type your own!"
-          className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
           rows={12}
         />
         <div className="flex items-center justify-between mt-3">
           <p className="text-sm text-gray-600">
             {editedContent.length} characters
+            {mediaFiles.length > 0 && ` • ${mediaFiles.length} media file(s)`}
           </p>
           <button
             onClick={handleCopyToClipboard}
@@ -592,16 +720,16 @@ export default function CreatePostPage() {
         </div>
       </div>
 
-      {/* Action Buttons Row */}
+      {/* Schedule & Actions */}
       {editedContent && (
         <>
           {/* Schedule Section */}
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Calendar className="w-6 h-6 text-red-600" />
               Step 4: Schedule Post (Optional)
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date
@@ -611,7 +739,7 @@ export default function CreatePostPage() {
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
                   min={minDate}
-                  className="w-full px-4 py-3 min-h-[44px]border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent"
                 />
               </div>
               <div>
@@ -632,7 +760,7 @@ export default function CreatePostPage() {
                   }}
                   placeholder="14:30"
                   maxLength={5}
-                  className="w-full px-4 py-3 min-h-[44px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-mono text-lg"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-mono text-lg"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Examples: 09:00, 14:30, 18:45, 23:59
@@ -642,11 +770,11 @@ export default function CreatePostPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               onClick={handleSaveAsTemplate}
               disabled={loading}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
             >
               <FileText className="w-5 h-5" />
               Save as Template
@@ -654,7 +782,7 @@ export default function CreatePostPage() {
             <button
               onClick={handleSchedulePost}
               disabled={loading || !scheduledDate || !scheduledTime}
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 min-h-[44px] px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
             >
               {loading ? (
                 <>
