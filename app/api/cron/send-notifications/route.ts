@@ -33,6 +33,13 @@ interface Profile {
   whatsapp?: string
 }
 
+interface NotificationSettings {
+  notification_lead_time: number
+  quiet_hours_start: string | null
+  quiet_hours_end: string | null
+  email_enabled: boolean
+}
+
 interface PostSchedule {
   id: string
   scheduled_for: string
@@ -46,6 +53,22 @@ interface PostSchedule {
   generated_content?: string
   facebook_groups: FacebookGroup | null
   profiles: Profile | null
+  notification_settings: NotificationSettings | null
+}
+
+function isInQuietHours(quietStart: string | null, quietEnd: string | null): boolean {
+  if (!quietStart || !quietEnd) return false
+  
+  const now = new Date()
+  const currentTime = now.toTimeString().slice(0, 5) // HH:MM format
+  
+  // If quiet hours cross midnight (e.g., 22:00 to 06:00)
+  if (quietStart > quietEnd) {
+    return currentTime >= quietStart || currentTime <= quietEnd
+  }
+  
+  // Normal range (e.g., 22:00 to 23:00)
+  return currentTime >= quietStart && currentTime <= quietEnd
 }
 
 export async function GET(request: Request) {
@@ -57,15 +80,19 @@ export async function GET(request: Request) {
     }
 
     const now = new Date()
-    const fourHoursFromNow = new Date(now.getTime() + 4 * 60 * 60 * 1000) // Changed from 2 to 4 hours
+    
+    // Get the maximum lead time to check (we'll filter per-user later)
+    // Check up to 4 hours ahead to catch all possible notification windows
+    const maxLeadTimeHours = 4
+    const maxTimeAhead = new Date(now.getTime() + maxLeadTimeHours * 60 * 60 * 1000)
+    
+    // Also check overdue posts from the past week
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
     console.log(`⏰ [${now.toISOString()}] Checking for schedules`)
-    console.log(`📅 Looking for posts between ${sevenDaysAgo.toISOString()} and ${fourHoursFromNow.toISOString()}`)
+    console.log(`📅 Looking for posts between ${sevenDaysAgo.toISOString()} and ${maxTimeAhead.toISOString()}`)
 
-    // FIXED: Send reminders for ALL content_ready posts that haven't been reminded yet
-    // This includes overdue posts too!
-    // Note: user_id FK points to auth.users, not profiles, so we fetch profiles separately
+    // Fetch schedules with notification settings
     const { data: schedules, error } = await supabase
       .from('post_schedules')
       .select(`
@@ -83,7 +110,7 @@ export async function GET(request: Request) {
       `)
       .in('status', ['scheduled', 'content_ready'])
       .gte('scheduled_for', sevenDaysAgo.toISOString())
-      .lte('scheduled_for', fourHoursFromNow.toISOString())
+      .lte('scheduled_for', maxTimeAhead.toISOString())
       .or('reminder_sent.is.null,reminder_sent.eq.false')
       .not('generated_content', 'is', null)
 
@@ -92,7 +119,7 @@ export async function GET(request: Request) {
       throw error
     }
 
-    console.log(`📧 Found ${schedules?.length || 0} schedules with content ready for reminders`)
+    console.log(`📧 Found ${schedules?.length || 0} potential schedules`)
 
     if (!schedules || schedules.length === 0) {
       return NextResponse.json({ 
@@ -102,29 +129,80 @@ export async function GET(request: Request) {
       })
     }
 
-    // Fetch all unique user profiles in one query
+    // Fetch user profiles and notification settings
     const userIds = [...new Set(schedules.map(s => s.user_id))]
-    const { data: profiles, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, whatsapp')
-      .in('id', userIds)
+    
+    const [profilesResult, settingsResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, whatsapp')
+        .in('id', userIds),
+      supabase
+        .from('notification_settings')
+        .select('user_id, notification_lead_time, quiet_hours_start, quiet_hours_end, email_enabled')
+        .in('user_id', userIds)
+    ])
 
-    if (profileError) {
-      console.error('❌ Error fetching profiles:', profileError)
+    if (profilesResult.error) {
+      console.error('❌ Error fetching profiles:', profilesResult.error)
+    }
+    if (settingsResult.error) {
+      console.error('❌ Error fetching settings:', settingsResult.error)
     }
 
-    // Create a map of user_id -> profile for quick lookup
+    // Create maps for quick lookup
     const profileMap = new Map(
-      profiles?.map(p => [p.id, p]) || []
+      profilesResult.data?.map(p => [p.id, p]) || []
+    )
+    
+    const settingsMap = new Map(
+      settingsResult.data?.map(s => [s.user_id, s]) || []
     )
 
-    const emailPromises = schedules.map(async (schedule) => {
+    // Filter schedules based on per-user notification settings
+    const eligibleSchedules = schedules.filter(schedule => {
+      const settings = settingsMap.get(schedule.user_id)
+      
+      // Use default 2 hours if no settings found
+      const leadTimeMinutes = settings?.notification_lead_time || 120
+      const leadTimeMs = leadTimeMinutes * 60 * 1000
+      
+      const scheduledTime = new Date(schedule.scheduled_for)
+      const notificationTime = new Date(scheduledTime.getTime() - leadTimeMs)
+      
+      // Check if it's time to send the notification
+      const shouldSendNow = now >= notificationTime
+      
+      // Check quiet hours
+      if (settings && isInQuietHours(settings.quiet_hours_start, settings.quiet_hours_end)) {
+        console.log(`⏸️ Skipping ${schedule.id} - in quiet hours`)
+        return false
+      }
+      
+      // Check if email is enabled
+      if (settings && !settings.email_enabled) {
+        console.log(`⏸️ Skipping ${schedule.id} - email disabled`)
+        return false
+      }
+      
+      if (!shouldSendNow) {
+        const minutesUntilNotification = Math.round((notificationTime.getTime() - now.getTime()) / 60000)
+        console.log(`⏸️ Skipping ${schedule.id} - notification in ${minutesUntilNotification} minutes`)
+        return false
+      }
+      
+      return true
+    })
+
+    console.log(`✅ ${eligibleSchedules.length} schedules are eligible for reminders`)
+
+    const emailPromises = eligibleSchedules.map(async (schedule) => {
       const rawGroup = Array.isArray(schedule.facebook_groups) 
         ? schedule.facebook_groups[0] 
         : schedule.facebook_groups
 
-      // Get profile from our profileMap instead of from joined data
       const profile = profileMap.get(schedule.user_id)
+      const settings = settingsMap.get(schedule.user_id)
 
       const typedSchedule: PostSchedule = {
         id: schedule.id,
@@ -146,7 +224,8 @@ export async function GET(request: Request) {
             ? { name: rawGroup.territories[0].name }
             : undefined
         } : null,
-        profiles: profile || null
+        profiles: profile || null,
+        notification_settings: settings || null
       }
       
       if (!typedSchedule.profiles?.email) {
@@ -211,6 +290,7 @@ export async function GET(request: Request) {
           .from('post_schedules')
           .update({ 
             reminder_sent: true,
+            reminder_sent_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('id', typedSchedule.id)
@@ -248,6 +328,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
       details: {
         total: schedules.length,
+        eligible: eligibleSchedules.length,
         sent: successCount,
         failed: validResults.length - successCount
       },
