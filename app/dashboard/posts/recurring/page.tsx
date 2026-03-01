@@ -6,7 +6,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { RotateCw, Pause, Play, StopCircle, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import { RotateCw, Pause, Play, StopCircle, Calendar, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import Link from 'next/link'
 
 type RecurringSeries = {
   id: string
@@ -113,7 +114,7 @@ export default function RecurringPostsPage() {
       loadRecurringSeries()
     } catch (err) {
       console.error('Error pausing series:', err)
-      toast.info('Failed to pause series')
+      toast.error('Failed to pause series')
     }
   }
 
@@ -129,7 +130,7 @@ export default function RecurringPostsPage() {
       loadRecurringSeries()
     } catch (err) {
       console.error('Error resuming series:', err)
-      toast.info('Failed to resume series')
+      toast.error('Failed to resume series')
     }
   }
 
@@ -146,7 +147,7 @@ export default function RecurringPostsPage() {
       loadRecurringSeries()
     } catch (err) {
       console.error('Error ending series:', err)
-      toast.info('Failed to end series')
+      toast.error('Failed to end series')
     }
   }
 
@@ -192,13 +193,24 @@ export default function RecurringPostsPage() {
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg p-4 sm:p-6 text-white">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
-          <RotateCw className="w-8 h-8" />
-          Recurring Posts
-        </h1>
-        <p className="mt-2 text-purple-100">
-          Manage your recurring post series and upcoming occurrences
-        </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-3">
+              <RotateCw className="w-8 h-8" />
+              Recurring Posts
+            </h1>
+            <p className="mt-2 text-purple-100">
+              Manage your recurring post series and upcoming occurrences
+            </p>
+          </div>
+          <Link
+            href="/dashboard/posts/recurring/create"
+            className="flex items-center gap-2 px-4 py-2 bg-white text-purple-600 rounded-lg hover:bg-purple-50 font-semibold transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-5 h-5" />
+            New Series
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
@@ -252,13 +264,13 @@ export default function RecurringPostsPage() {
             <p className="text-gray-600 mb-6">
               You haven't created any recurring posts yet.
             </p>
-            <a
-              href="/dashboard/posts/schedule"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            <Link
+              href="/dashboard/posts/recurring/create"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
-              <Calendar className="w-4 h-4" />
-              Schedule Your First Post
-            </a>
+              <Plus className="w-4 h-4" />
+              Create Your First Recurring Series
+            </Link>
           </CardContent>
         </Card>
       ) : (
@@ -276,7 +288,7 @@ export default function RecurringPostsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-lg font-bold text-gray-900">
                           {item.facebook_groups?.name || 'Unknown Group'}
                         </h3>
@@ -287,7 +299,7 @@ export default function RecurringPostsPage() {
                           {getPatternDisplay(item.recurrence_pattern)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 sm:gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-3 sm:gap-4 text-sm text-gray-600 flex-wrap">
                         <span className="capitalize">{item.post_type.replace(/_/g, ' ')}</span>
                         <span>•</span>
                         <span>{completedCount} completed</span>
@@ -301,7 +313,7 @@ export default function RecurringPostsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {isPaused ? (
                         <button
                           onClick={() => resumeSeries(item.id)}
