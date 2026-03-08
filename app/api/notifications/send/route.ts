@@ -1,4 +1,4 @@
-// app/api/notifications/send/route.ts
+// app/api/notifications/send/route.ts - FIXED WITH facebook_url
 
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         facebook_groups!inner(
           name,
           group_url,
+          facebook_url,
           territories(name)
         )
       `)
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`📨 Sending manual reminder to ${userEmail} for schedule ${scheduleId}`)
 
-    // Send email
+    // Send email with facebook_url priority
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: process.env.FROM_EMAIL || 'UCG Social Scheduler <onboarding@resend.dev>',
       to: userEmail,
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
       html: generateEmailHTML(
         userName,
         groupName,
-        group.group_url,
+        group.facebook_url || group.group_url, // Use facebook_url first, fallback to group_url
         schedule.generated_content,
         formattedTime,
         timeUntilText,
@@ -242,7 +243,7 @@ function generateEmailHTML(
                 </p>
                 <ol style="margin: 10px 0 0 0; padding-left: 20px; color: #1e40af; font-size: 14px;">
                   <li style="margin-bottom: 8px;">Copy the post content below (click to select all)</li>
-                  <li style="margin-bottom: 8px;">Go to the Facebook group using the button</li>
+                  <li style="margin-bottom: 8px;">Click "Go to Facebook Group" button</li>
                   <li style="margin-bottom: 8px;">Paste and publish!</li>
                   <li>Return to dashboard to mark as posted</li>
                 </ol>
