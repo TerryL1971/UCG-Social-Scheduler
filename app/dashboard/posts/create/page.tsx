@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Calendar, Users, MapPin, Wand2, Save, Eye, Copy, FileText, Image, Video, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
-import { getUserFriendlyMessage } from '@/lib/errors'
 
 type FacebookGroup = {
   id: string
@@ -173,15 +172,6 @@ export default function CreatePostPage() {
     setMediaFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const openFacebookGroup = () => {
-    const group = groups.find(g => g.id === selectedGroup)
-    if (group?.facebook_url) {
-      window.open(group.facebook_url, '_blank')
-    } else {
-      toast.error('No Facebook URL set for this group')
-    }
-  }
-
   const handleGeneratePost = async () => {
     if (!selectedGroup) {
       toast.warning('Please select a Facebook group')
@@ -254,10 +244,20 @@ export default function CreatePostPage() {
     try {
       await navigator.clipboard.writeText(editedContent)
       setCopied(true)
+      toast.success('Content copied to clipboard!')
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
       toast.error('Failed to copy to clipboard')
+    }
+  }
+
+  const openFacebookGroup = () => {
+    const group = groups.find(g => g.id === selectedGroup)
+    if (group?.facebook_url) {
+      window.open(group.facebook_url, '_blank')
+    } else {
+      toast.warning('No Facebook URL set for this group')
     }
   }
 
@@ -378,8 +378,7 @@ export default function CreatePostPage() {
       console.error('❌ Error saving post:', err)
       const errorMsg = err instanceof Error ? err.message : 'Failed to save post'
       setError(errorMsg)
-      const message = getUserFriendlyMessage(error, 'load schedules')
-      toast.error(message)
+      toast.error(errorMsg)
     } finally {
       setLoading(false)
     }
@@ -704,19 +703,31 @@ export default function CreatePostPage() {
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent font-sans"
           rows={12}
         />
-        <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
           <p className="text-sm text-gray-600">
             {editedContent.length} characters
             {mediaFiles.length > 0 && ` • ${mediaFiles.length} media file(s)`}
           </p>
-          <button
-            onClick={handleCopyToClipboard}
-            disabled={!editedContent}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Copy className="w-4 h-4" />
-            {copied ? 'Copied!' : 'Copy to Clipboard'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyToClipboard}
+              disabled={!editedContent}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Copy className="w-4 h-4" />
+              {copied ? 'Copied!' : 'Copy to Clipboard'}
+            </button>
+            
+            {selectedGroupData?.facebook_url && (
+              <button
+                onClick={openFacebookGroup}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Go to Facebook Group
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
-// dashboard/posts/recurring/create/page.tsx
+// app/dashboard/posts/schedule-recurring/page.tsx
+// OR add this section to your existing Create Post page
 
 'use client'
 
@@ -26,7 +27,7 @@ export default function ScheduleRecurringPostPage() {
   
   // Form state
   const [selectedGroup, setSelectedGroup] = useState('')
-  const [postType, setPostType] = useState<PostType>('vehicle_spotlight')
+  const [postType, setPostType] = useState<PostType>('brand_awareness')
   const [postContent, setPostContent] = useState('')
   const [specialOffer, setSpecialOffer] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
@@ -218,10 +219,10 @@ export default function ScheduleRecurringPostPage() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Feature cars' },
-            { value: 'special_offer', label: 'Special Offer', desc: 'Promote deals' },
             { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Build relationships' },
             { value: 'community', label: 'Community Focus', desc: 'Military emphasis' },
+            { value: 'special_offer', label: 'Special Offer', desc: 'Promote deals' },
+            { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Feature cars' },
             { value: 'testimonial_style', label: 'Success Story', desc: 'Customer stories' }
           ].map((type) => (
             <button

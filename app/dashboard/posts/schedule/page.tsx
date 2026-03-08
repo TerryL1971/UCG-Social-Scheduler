@@ -2,22 +2,25 @@
 
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { Sparkles, Calendar, Users, MapPin, Wand2, Save, ExternalLink, Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Calendar, Users, MapPin, Sparkles, ArrowLeft } from 'lucide-react'
 
 type FacebookGroup = {
   id: string
   name: string
   territory_id: string
-  territories: {
+  group_type?: string
+  description?: string
+  facebook_url?: string
+  territories?: {
     name: string
-  } | null
+  }
 }
 
-type PostType = 'brand_awareness' | 'vehicle_spotlight' | 'special_offer' | 'community' | 'testimonial_style'
+type PostType = 'vehicle_spotlight' | 'special_offer' | 'brand_awareness' | 'community' | 'testimonial_style'
 
 type VehicleData = {
   make: string
@@ -25,51 +28,51 @@ type VehicleData = {
   year: string
   price: string
   features: string
-  condition?: string
-  mileage?: string
+  condition: string
+  mileage: string
 }
 
 type TestimonialData = {
   customerName: string
   vehicle: string
   experience: string
-  location?: string
+  location: string
 }
 
-function SchedulePageContent() {
+type UserProfile = {
+  full_name: string
+  email: string
+  whatsapp?: string
+}
+
+export default function SchedulePostPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
-  
+
+  const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [groups, setGroups] = useState<FacebookGroup[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [showViolationModal, setShowViolationModal] = useState(false)
-  const [userTerritories, setUserTerritories] = useState<string[]>([])
-  const [primaryTerritoryId, setPrimaryTerritoryId] = useState<string | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   
-  const scheduleId = searchParams.get('scheduleId')
-  const isEditMode = !!scheduleId
-  
-  const [selectedGroupId, setSelectedGroupId] = useState('')
-  const [postType, setPostType] = useState<PostType>('brand_awareness')
-  const [scheduledDate, setScheduledDate] = useState('')
-  const [scheduledTime, setScheduledTime] = useState('')
-  const [occasion, setOccasion] = useState('')
-  const [minDate, setMinDate] = useState('')
+  // Form state
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [postType, setPostType] = useState<PostType>('vehicle_spotlight')
   const [targetAudience, setTargetAudience] = useState('')
+  const [additionalContext, setAdditionalContext] = useState('')
   const [specialOffer, setSpecialOffer] = useState('')
   
+  // Vehicle data
   const [vehicleData, setVehicleData] = useState<VehicleData>({
     make: '',
     model: '',
     year: '',
     price: '',
     features: '',
-    condition: 'eu_spec',
+    condition: '',
     mileage: ''
   })
-  
+
+  // Testimonial data
   const [testimonialData, setTestimonialData] = useState<TestimonialData>({
     customerName: '',
     vehicle: '',
@@ -77,437 +80,531 @@ function SchedulePageContent() {
     location: ''
   })
 
+  // Content state
+  const [generatedContent, setGeneratedContent] = useState('')
+  const [editedContent, setEditedContent] = useState('')
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  // Schedule state
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('')
+  const [minDate] = useState(new Date().toISOString().split('T')[0])
+
   useEffect(() => {
-    setMinDate(new Date().toISOString().split('T')[0])
     loadGroups()
-    loadUserTerritories()
+    loadUserProfile()
   }, [])
 
-  useEffect(() => {
-    if (groups.length > 0 && searchParams.get('groupId')) {
-      const groupId = searchParams.get('groupId')
-      const scheduledFor = searchParams.get('scheduledFor')
-      const postTypeParam = searchParams.get('postType')
-      const notesParam = searchParams.get('notes')
-      const metadataParam = searchParams.get('metadata')
-      
-      if (groupId) setSelectedGroupId(groupId)
-      
-      if (scheduledFor) {
-        const date = new Date(scheduledFor)
-        setScheduledDate(date.toISOString().split('T')[0])
-        setScheduledTime(date.toTimeString().slice(0, 5))
-      }
-
-      if (postTypeParam) setPostType(postTypeParam as PostType)
-      if (notesParam) setOccasion(notesParam)
-
-      if (metadataParam) {
-        try {
-          const metadata = JSON.parse(metadataParam)
-          if (metadata.target_audience) setTargetAudience(metadata.target_audience)
-          if (metadata.special_offer) setSpecialOffer(metadata.special_offer)
-          if (metadata.vehicle_data) setVehicleData(metadata.vehicle_data)
-          if (metadata.testimonial_data) setTestimonialData(metadata.testimonial_data)
-        } catch (e) {
-          console.error('Error parsing metadata:', e)
-        }
-      }
-    }
-  }, [groups, searchParams])
-
-  async function loadGroups() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('facebook_groups')
-        .select(`
-          id,
-          name,
-          territory_id,
-          territories (
-            name
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('name')
-
-      if (error) throw error
-
-      const flattenedData = data?.map(group => ({
-        ...group,
-        territories: Array.isArray(group.territories) 
-          ? group.territories[0] 
-          : group.territories
-      })) || []
-
-      setGroups(flattenedData)
-    } catch (error) {
-      console.error('Error loading groups:', error)
-      toast.info('Failed to load groups')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function loadUserTerritories() {
+  const loadGroups = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
       const { data, error } = await supabase
-        .from('profile_territories')
-        .select('territory_id, is_primary')
-        .eq('profile_id', user.id)
+        .from('facebook_groups')
+        .select('id, name, group_type, description, facebook_url, territory_id, territories(name)')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
 
       if (error) throw error
 
-      const territoryIds = data?.map(pt => pt.territory_id) || []
-      const primary = data?.find(pt => pt.is_primary)
+      const flattenedData = data?.map(group => ({
+        ...group,
+        territories: Array.isArray(group.territories) ? group.territories[0] : group.territories
+      })) || []
 
-      setUserTerritories(territoryIds)
-      setPrimaryTerritoryId(primary?.territory_id || territoryIds[0] || null)
-    } catch (error) {
-      console.error('Error loading user territories:', error)
+      setGroups(flattenedData)
+    } catch (err) {
+      console.error('Error loading groups:', err)
+      toast.error('Failed to load groups')
     }
   }
 
-  async function handleSchedule() {
+  const loadUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, email, whatsapp')
+        .eq('id', user.id)
+        .single()
+
+      if (error) throw error
+      setUserProfile(data)
+    } catch (err) {
+      console.error('Error loading profile:', err)
+    }
+  }
+
+  const handleGenerateContent = async () => {
+    if (!selectedGroup || !postType) {
+      toast.warning('Please select a group and post type')
+      return
+    }
+
+    // Validation for vehicle spotlight
+    if ((postType === 'vehicle_spotlight' || postType === 'special_offer') && !vehicleData.make) {
+      toast.warning('Please enter vehicle details for this post type')
+      return
+    }
+
+    // Validation for testimonial
+    if (postType === 'testimonial_style' && !testimonialData.customerName) {
+      toast.warning('Please enter customer testimonial details')
+      return
+    }
+
+    setGenerating(true)
+    setError('')
+
+    try {
+      const group = groups.find(g => g.id === selectedGroup)
+      if (!group) throw new Error('Group not found')
+
+      const response = await fetch('/api/posts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupName: group.name,
+          groupType: group.group_type,
+          territory: group.territories?.name || 'Unknown',
+          groupDescription: group.description,
+          postType,
+          specialOffer: postType === 'special_offer' ? specialOffer : undefined,
+          targetAudience,
+          additionalContext,
+          vehicleData: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : undefined,
+          testimonialData: postType === 'testimonial_style' ? testimonialData : undefined,
+          userProfile: userProfile
+        })
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to generate post')
+      }
+
+      if (!data.content) {
+        throw new Error('No content received from AI')
+      }
+
+      setGeneratedContent(data.content)
+      setEditedContent(data.content)
+      
+      // Scroll to preview
+      setTimeout(() => {
+        document.getElementById('preview-section')?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        })
+      }, 100)
+      
+    } catch (err) {
+      console.error('Generation error:', err)
+      const errorMsg = err instanceof Error ? err.message : 'Failed to generate post'
+      setError(errorMsg)
+      toast.error(errorMsg)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleSchedulePost = async () => {
+    if (!editedContent || !selectedGroup || !scheduledDate || !scheduledTime) {
+      toast.warning('Please complete all required fields')
+      return
+    }
+
     const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
-    
-    if (!selectedGroupId || !scheduledDate || !scheduledTime) {
-      toast.warning('Please fill in all required fields')
-      return
-    }
-    
     if (!timeRegex.test(scheduledTime)) {
-      toast.warning('Invalid time format. Please use HH:MM in 24-hour format (e.g., 14:30, 09:00, 23:45)')
+      toast.warning('Invalid time format. Use HH:MM in 24-hour format (e.g., 09:00, 14:30)')
       return
     }
 
-    const selectedGroup = groups.find(g => g.id === selectedGroupId)
-    
-    const hasViolation = selectedGroup?.territory_id && (
-      userTerritories.length === 0 || 
-      !userTerritories.includes(selectedGroup.territory_id)
-    )
-    
-    if (hasViolation) {
-      setShowViolationModal(true)
-      return
-    }
+    setLoading(true)
 
-    await saveScheduledPost(false)
-  }
-
-  async function saveScheduledPost(acknowledgeViolation: boolean) {
-    setSaving(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const selectedGroup = groups.find(g => g.id === selectedGroupId)
-      if (!selectedGroup) throw new Error('Group not found')
+      const group = groups.find(g => g.id === selectedGroup)
+      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00`)
 
-      const scheduledFor = `${scheduledDate}T${scheduledTime}:00`
+      const { error } = await supabase
+        .from('post_schedules')
+        .insert({
+          user_id: user.id,
+          group_id: selectedGroup,
+          territory_id: group?.territory_id,
+          scheduled_for: scheduledFor.toISOString(),
+          post_type: postType,
+          generated_content: editedContent,
+          content_generated_at: new Date().toISOString(),
+          status: 'content_ready',
+          reminder_sent: false,
+          target_audience: targetAudience || null,
+          special_context: additionalContext || null,
+          special_offer: postType === 'special_offer' ? specialOffer : null,
+          vehicle_data: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : null,
+          testimonial_data: postType === 'testimonial_style' ? testimonialData : null
+        })
 
-      const saveData = {
-        user_id: user.id,
-        group_id: selectedGroupId,
-        territory_id: selectedGroup.territory_id,
-        scheduled_for: scheduledFor,
-        post_type: postType,
-        status: 'scheduled',
-        territory_violation_acknowledged: acknowledgeViolation,
-        violation_status: acknowledgeViolation ? 'unresolved' : null,
-        target_audience: targetAudience || null,
-        special_context: occasion || null,
-        special_offer: (postType === 'special_offer' && specialOffer) ? specialOffer : null,
-        vehicle_data: (postType === 'vehicle_spotlight' || postType === 'special_offer') && vehicleData.make 
-          ? vehicleData 
-          : null,
-        testimonial_data: postType === 'testimonial_style' && testimonialData.customerName 
-          ? testimonialData 
-          : null
-      }
+      if (error) throw error
 
-      let result
-      if (isEditMode && scheduleId) {
-        result = await supabase
-          .from('post_schedules')
-          .update(saveData)
-          .eq('id', scheduleId)
-          .select()
-      } else {
-        result = await supabase
-          .from('post_schedules')
-          .insert(saveData)
-          .select()
-      }
+      toast.success('Post scheduled successfully! 🎉')
+      router.push('/dashboard/posts')
 
-      if (result.error) throw result.error
-
-      const message = isEditMode 
-        ? 'Post rescheduled successfully! The system will generate new content before posting.'
-        : 'Post scheduled successfully! The system will generate content before posting.'
-      
-      alert(message)
-      setShowViolationModal(false)
-      router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')
-      
-    } catch (error: any) {
-      console.error('Schedule error:', error)
-      alert(`Failed to ${isEditMode ? 'update' : 'schedule'} post: ${error.message}`)
+    } catch (err) {
+      console.error('Error scheduling post:', err)
+      const errorMsg = err instanceof Error ? err.message : 'Failed to schedule post'
+      toast.error(errorMsg)
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <div className="animate-pulse">Loading groups...</div>
-      </div>
-    )
+  const handleCopyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(editedContent)
+      setCopied(true)
+      toast.success('Content copied to clipboard!')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+      toast.error('Failed to copy to clipboard')
+    }
   }
 
-  const selectedGroup = groups.find(g => g.id === selectedGroupId)
+  const openFacebookGroup = () => {
+    if (selectedGroupData?.facebook_url) {
+      window.open(selectedGroupData.facebook_url, '_blank')
+    }
+  }
+
+  const selectedGroupData = groups.find(g => g.id === selectedGroup)
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6">
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {isEditMode ? 'Back to Violations' : 'Back to Posts'}
-        </button>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Calendar className="w-8 h-8 text-blue-600" />
-          {isEditMode ? 'Edit & Reschedule Post' : 'Schedule Post for Future Generation'}
+    <div className="max-w-4xl mx-auto space-y-6 px-4">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <Calendar className="w-8 h-8" />
+          Schedule a Post
         </h1>
-        <p className="text-gray-600 mt-2">
-          {isEditMode 
-            ? 'Update your scheduling parameters and regenerate content for this post'
-            : 'Schedule a post to be automatically generated by AI and ready for posting at the specified time'
-          }
+        <p className="mt-2 text-red-100">
+          Create and schedule AI-generated content for your Facebook groups
         </p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <div className="mb-8">
-          <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
-            <Users className="w-5 h-5 text-blue-600" />
-            Select Facebook Group
-          </label>
-          <select
-            value={selectedGroupId}
-            onChange={(e) => setSelectedGroupId(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          >
-            <option value="">Choose a group...</option>
-            {groups.map(group => (
-              <option key={group.id} value={group.id}>
-                {group.name} ({group.territories?.name || 'No territory'})
-              </option>
-            ))}
-          </select>
-
-          {selectedGroup && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg flex items-center gap-2 text-sm text-blue-800">
-              <MapPin className="w-4 h-4" />
-              Territory: {selectedGroup.territories?.name || 'Unknown'}
+      {/* Step 1: Select Group */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Users className="w-6 h-6 text-red-600" />
+          Step 1: Select Facebook Group
+        </h2>
+        <select
+          value={selectedGroup}
+          onChange={(e) => setSelectedGroup(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+        >
+          <option value="">Choose a group...</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name} - {group.territories?.name}
+            </option>
+          ))}
+        </select>
+        
+        {selectedGroupData && (
+          <div className="flex items-center gap-3 mt-3">
+            <div className="flex-1 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-red-600" />
+                <strong>Territory:</strong> {selectedGroupData.territories?.name}
+              </p>
+              {selectedGroupData.group_type && (
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>Type:</strong> {selectedGroupData.group_type}
+                </p>
+              )}
             </div>
-          )}
-        </div>
-
-        <div className="mb-8">
-          <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            Post Type
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Community-focused, relationship building' },
-              { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Highlight specific vehicles' },
-              { value: 'special_offer', label: 'Special Offer', desc: 'Promote a specific deal' },
-              { value: 'testimonial_style', label: 'Success Story', desc: 'Share customer experience' },
-              { value: 'community', label: 'Community Focus', desc: 'Emphasize military service' }
-            ].map(type => (
+            
+            {selectedGroupData.facebook_url && (
               <button
-                key={type.value}
-                onClick={() => setPostType(type.value as PostType)}
-                className={`p-4 rounded-lg border-2 text-left transition-all ${
-                  postType === type.value
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                onClick={openFacebookGroup}
+                className="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
               >
-                <div className="font-semibold text-gray-900">{type.label}</div>
-                <div className="text-sm text-gray-600">{type.desc}</div>
+                <ExternalLink className="w-4 h-4" />
+                Open in Facebook
               </button>
-            ))}
-          </div>
-        </div>
-
-        {postType === 'special_offer' && (
-          <div className="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Special Offer Details
-            </label>
-            <textarea
-              value={specialOffer}
-              onChange={(e) => setSpecialOffer(e.target.value)}
-              placeholder="e.g., 10% off military pricing, free warranty upgrade, $500 trade-in bonus..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              rows={2}
-            />
+            )}
           </div>
         )}
+      </div>
 
+      {/* Step 2: Post Type */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Sparkles className="w-6 h-6 text-red-600" />
+          Step 2: Choose Post Type
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Feature a specific car' },
+            { value: 'special_offer', label: 'Special Offer', desc: 'Promote deals & discounts' },
+            { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Build relationships' },
+            { value: 'community', label: 'Community Focus', desc: 'Military community emphasis' },
+            { value: 'testimonial_style', label: 'Success Story', desc: 'Customer testimonials' }
+          ].map((type) => (
+            <button
+              key={type.value}
+              onClick={() => setPostType(type.value as PostType)}
+              className={`p-4 border-2 rounded-lg text-left transition-all ${
+                postType === type.value
+                  ? 'border-red-600 bg-red-50'
+                  : 'border-gray-200 hover:border-red-300'
+              }`}
+            >
+              <p className="font-semibold text-gray-900">{type.label}</p>
+              <p className="text-sm text-gray-600 mt-1">{type.desc}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* Vehicle Data Form */}
         {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
-          <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
-            <h3 className="font-semibold text-gray-900 mb-4">🚗 Vehicle Information</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
+            <h3 className="font-semibold text-gray-900 text-lg mb-4">🚗 Vehicle Details</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <input
                 type="text"
+                placeholder="Make (e.g., Toyota)"
                 value={vehicleData.make}
                 onChange={(e) => setVehicleData({...vehicleData, make: e.target.value})}
-                placeholder="Make (e.g., Toyota)"
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <input
                 type="text"
+                placeholder="Model (e.g., Camry)"
                 value={vehicleData.model}
                 onChange={(e) => setVehicleData({...vehicleData, model: e.target.value})}
-                placeholder="Model (e.g., Camry)"
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <input
                 type="text"
+                placeholder="Year (e.g., 2020)"
                 value={vehicleData.year}
                 onChange={(e) => setVehicleData({...vehicleData, year: e.target.value})}
-                placeholder="Year (e.g., 2020)"
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <input
                 type="text"
+                placeholder="Price (e.g., $15,000)"
                 value={vehicleData.price}
                 onChange={(e) => setVehicleData({...vehicleData, price: e.target.value})}
-                placeholder="Price (optional)"
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <input
                 type="text"
+                placeholder="Mileage (e.g., 45,000 miles)"
                 value={vehicleData.mileage}
                 onChange={(e) => setVehicleData({...vehicleData, mileage: e.target.value})}
-                placeholder="Mileage (optional)"
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
-              <select
+              <input
+                type="text"
+                placeholder="Condition (e.g., Excellent)"
                 value={vehicleData.condition}
                 onChange={(e) => setVehicleData({...vehicleData, condition: e.target.value})}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="eu_spec">EU Spec</option>
-                <option value="us_spec">US Spec</option>
-              </select>
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+              />
             </div>
             <textarea
+              placeholder="Key Features (e.g., leather seats, backup camera, low mileage...)"
               value={vehicleData.features}
               onChange={(e) => setVehicleData({...vehicleData, features: e.target.value})}
-              placeholder="Key features (e.g., Navigation, heated seats, AWD...)"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 mt-4"
+              className="w-full mt-4 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               rows={2}
             />
           </div>
         )}
 
+        {/* Testimonial Data Form */}
         {postType === 'testimonial_style' && (
-          <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
-            <h3 className="font-semibold text-gray-900 mb-4">⭐ Customer Story Details</h3>
+          <div className="mt-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
+            <h3 className="font-semibold text-gray-900 text-lg mb-4">⭐ Customer Testimonial</h3>
             <div className="space-y-4">
               <input
                 type="text"
+                placeholder="Customer Name (or 'Recent Customer')"
                 value={testimonialData.customerName}
                 onChange={(e) => setTestimonialData({...testimonialData, customerName: e.target.value})}
-                placeholder="Customer name (or 'a military family')"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <input
                 type="text"
+                placeholder="Vehicle Purchased (e.g., 2019 Honda Accord)"
                 value={testimonialData.vehicle}
                 onChange={(e) => setTestimonialData({...testimonialData, vehicle: e.target.value})}
-                placeholder="Vehicle purchased"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <input
                 type="text"
-                value={testimonialData.location || ''}
+                placeholder="Location (e.g., Kaiserslautern)"
+                value={testimonialData.location}
                 onChange={(e) => setTestimonialData({...testimonialData, location: e.target.value})}
-                placeholder="Location (optional)"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
               <textarea
+                placeholder="Their Experience (e.g., Great service, found perfect car, smooth process...)"
                 value={testimonialData.experience}
                 onChange={(e) => setTestimonialData({...testimonialData, experience: e.target.value})}
-                placeholder="Their experience/need..."
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
                 rows={3}
               />
             </div>
           </div>
         )}
 
-        <div className="mb-8">
-          <label className="text-lg font-semibold text-gray-900 mb-3 block">
-            Occasion or Theme (Optional)
-          </label>
-          <input
-            type="text"
-            value={occasion}
-            onChange={(e) => setOccasion(e.target.value)}
-            placeholder="e.g., Memorial Day, New Inventory Sale, Tax Season..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+        {/* Special Offer */}
+        {postType === 'special_offer' && (
+          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Special Offer Details
+            </label>
+            <textarea
+              value={specialOffer}
+              onChange={(e) => setSpecialOffer(e.target.value)}
+              placeholder="e.g., 10% off for military, free extended warranty, special financing..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+              rows={2}
+            />
+          </div>
+        )}
 
-        <div className="mb-8">
-          <label className="text-lg font-semibold text-gray-900 mb-3 block">
-            Target Audience (Optional)
-          </label>
-          <input
-            type="text"
-            value={targetAudience}
-            onChange={(e) => setTargetAudience(e.target.value)}
-            placeholder="e.g., young families, new arrivals, first-time buyers"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+        {/* Additional Context */}
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target Audience (Optional)
+            </label>
+            <input
+              type="text"
+              value={targetAudience}
+              onChange={(e) => setTargetAudience(e.target.value)}
+              placeholder="e.g., young families, new arrivals, first-time buyers"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Additional Context (Optional)
+            </label>
+            <textarea
+              value={additionalContext}
+              onChange={(e) => setAdditionalContext(e.target.value)}
+              placeholder="Any other details: promotions, urgency, special circumstances..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+              rows={2}
+            />
+          </div>
         </div>
+      </div>
 
-        <div className="mb-8">
-          <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3">
-            <Calendar className="w-5 h-5 text-green-600" />
-            When to Generate & Post
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      {/* Step 3: Generate Content */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Wand2 className="w-6 h-6 text-red-600" />
+          Step 3: Generate Content
+        </h2>
+        <button
+          onClick={handleGenerateContent}
+          disabled={generating || !selectedGroup}
+          className="w-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold py-4 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+        >
+          {generating ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              Generating AI Content...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" />
+              Generate Post with AI
+            </>
+          )}
+        </button>
+        {error && (
+          <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Step 4: Preview & Edit */}
+      {editedContent && (
+        <div id="preview-section" className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <Save className="w-6 h-6 text-red-600" />
+            Step 4: Review & Edit Content
+          </h2>
+          <textarea
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            placeholder="Your post content will appear here... or type your own!"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 font-sans"
+            rows={12}
+          />
+          <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
+            <p className="text-sm text-gray-600">
+              {editedContent.length} characters
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyToClipboard}
+                disabled={!editedContent}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Copy className="w-4 h-4" />
+                {copied ? 'Copied!' : 'Copy to Clipboard'}
+              </button>
+              
+              {selectedGroupData?.facebook_url && (
+                <button
+                  onClick={openFacebookGroup}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Go to Facebook Group
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Schedule */}
+      {editedContent && (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-red-600" />
+            Step 5: When to Post
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date
+              </label>
               <input
                 type="date"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
                 min={minDate}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
               />
             </div>
             <div>
@@ -528,106 +625,53 @@ function SchedulePageContent() {
                 }}
                 placeholder="14:30"
                 maxLength={5}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 font-mono"
               />
-              <p className="text-xs text-gray-500 mt-1">Examples: 09:00, 14:30, 18:45, 23:59</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Examples: 09:00, 14:30, 18:45, 23:59
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="flex gap-3 sm:gap-4">
-          <button
-            onClick={() => router.push(isEditMode ? '/dashboard/my-violations' : '/dashboard/posts')}
-            className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSchedule}
-            disabled={saving || !selectedGroupId || !scheduledDate || !scheduledTime}
-            className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            {saving ? (
-              <>{isEditMode ? 'Updating...' : 'Scheduling...'}</>
-            ) : (
-              <>
-                <Calendar className="w-5 h-5" />
-                {isEditMode ? 'Update Schedule' : 'Schedule Post'}
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>Note:</strong> The AI will automatically generate content for this post 2 hours before the scheduled time. 
-            You'll receive a reminder email to review and post the content.
-          </p>
-        </div>
-      </div>
-
-      {showViolationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Territory Violation</h3>
-                <p className="text-sm text-gray-600">You're posting outside your assigned territory</p>
-              </div>
-            </div>
-
-            <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-              <p className="text-sm text-gray-800 mb-2">
-                <strong>Selected Group:</strong> {groups.find(g => g.id === selectedGroupId)?.name}
-              </p>
-              <p className="text-sm text-gray-800 mb-2">
-                <strong>Group Territory:</strong> {groups.find(g => g.id === selectedGroupId)?.territories?.name}
-              </p>
-              <p className="text-sm text-gray-800">
-                <strong>Your Territory:</strong> {primaryTerritoryId ? groups.find(g => g.territory_id === primaryTerritoryId)?.territories?.name || 'Unknown' : 'None assigned'}
-              </p>
-            </div>
-
-            <p className="text-sm text-gray-700 mb-6">
-              This violation will be logged and visible to your manager. You'll need to provide justification or request authorization in the "My Violations" page.
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> You'll receive a reminder email 2 hours before the scheduled time. 
+              You'll need to manually post the content to Facebook.
             </p>
+          </div>
 
-            <div className="flex gap-3">
+          {/* Action Buttons */}
+          <div className="grid grid-cols-1 gap-4 mt-6">
+            <button
+              onClick={handleSchedulePost}
+              disabled={loading || !scheduledDate || !scheduledTime}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  Scheduling...
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-5 h-5" />
+                  Schedule Post
+                </>
+              )}
+            </button>
+
+            {selectedGroupData?.facebook_url && (
               <button
-                onClick={() => setShowViolationModal(false)}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={openFacebookGroup}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-3"
               >
-                Cancel
+                <ExternalLink className="w-5 h-5" />
+                Go to Facebook Group - Ready to Post!
               </button>
-              <button
-                onClick={() => saveScheduledPost(true)}
-                disabled={saving}
-                className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 transition-colors"
-              >
-                {saving ? (isEditMode ? 'Updating...' : 'Scheduling...') : 'Proceed Anyway'}
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
     </div>
-  )
-}
-
-export default function CreateSchedulePage() {
-  return (
-    <Suspense fallback={
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <div className="animate-pulse">Loading...</div>
-      </div>
-    }>
-      <SchedulePageContent />
-    </Suspense>
   )
 }
