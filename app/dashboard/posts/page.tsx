@@ -1,4 +1,4 @@
-// app/dashboard/posts/page.tsx - FIXED WITH FACEBOOK BUTTON IN MODAL
+// app/dashboard/posts/page.tsx - WITH MONTHLY GROUPING
 
 'use client'
 
@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { PostsListSkeleton } from '@/components/ui/LoadingSkeletons'
-import { Calendar, Clock, Users, Eye, RotateCw, CheckCircle, XCircle, Trash2, Plus, Mail, ExternalLink } from 'lucide-react'
+import { Calendar, Clock, Users, Eye, RotateCw, CheckCircle, XCircle, Trash2, Plus, Mail, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 type PostSchedule = {
@@ -29,6 +29,12 @@ type PostSchedule = {
   }
 }
 
+type MonthGroup = {
+  monthYear: string
+  displayName: string
+  posts: PostSchedule[]
+}
+
 export default function PostsDashboardPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -39,6 +45,7 @@ export default function PostsDashboardPage() {
   const [showContentModal, setShowContentModal] = useState(false)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null)
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     loadSchedules()
@@ -77,12 +84,60 @@ export default function PostsDashboardPage() {
       })) || []
 
       setSchedules(transformed as PostSchedule[])
+      
+      // Auto-expand current month and next month
+      const now = new Date()
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const nextMonthKey = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`
+      setExpandedMonths(new Set([currentMonthKey, nextMonthKey]))
+      
     } catch (error) {
       console.error('Error loading schedules:', error)
       toast.error('Failed to load schedules')
     } finally {
       setLoading(false)
     }
+  }
+
+  const groupPostsByMonth = (posts: PostSchedule[]): MonthGroup[] => {
+    const groups = new Map<string, PostSchedule[]>()
+    
+    posts.forEach(post => {
+      const date = new Date(post.scheduled_for)
+      const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      
+      if (!groups.has(monthYear)) {
+        groups.set(monthYear, [])
+      }
+      groups.get(monthYear)!.push(post)
+    })
+    
+    return Array.from(groups.entries())
+      .map(([monthYear, posts]) => {
+        const [year, month] = monthYear.split('-')
+        const date = new Date(parseInt(year), parseInt(month) - 1, 1)
+        const displayName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        
+        return {
+          monthYear,
+          displayName,
+          posts
+        }
+      })
+      .sort((a, b) => a.monthYear.localeCompare(b.monthYear))
+  }
+
+  const toggleMonth = (monthYear: string) => {
+    setExpandedMonths(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(monthYear)) {
+        newSet.delete(monthYear)
+      } else {
+        newSet.add(monthYear)
+      }
+      return newSet
+    })
   }
 
   const handleRegenerateContent = async (schedule: PostSchedule) => {
@@ -270,6 +325,8 @@ export default function PostsDashboardPage() {
     return <PostsListSkeleton />
   }
 
+  const monthGroups = groupPostsByMonth(schedules)
+
   return (
     <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
@@ -355,144 +412,172 @@ export default function PostsDashboardPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-3 sm:space-y-4">
-          {schedules.map((schedule) => (
-            <div
-              key={schedule.id}
-              className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-2 border-gray-200 hover:border-red-300 transition-colors"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 sm:gap-4">
-                <div className="flex-1 min-w-0">
-                  {/* Badges Row */}
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    {getStatusBadge(schedule.status)}
-                    {!isUpcoming(schedule.scheduled_for) && schedule.status !== 'posted' && (
-                      <span className="px-2 sm:px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold border-2 border-red-300">
-                        ⚠️ Overdue
-                      </span>
-                    )}
-                    {schedule.reminder_sent && (
-                      <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                        📧 Reminder
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Info Row */}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 shrink-0" />
-                      <span className="font-semibold text-sm sm:text-base truncate">{schedule.facebook_groups.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="w-4 h-4 shrink-0" />
-                      <span className="text-xs sm:text-sm">{formatDate(schedule.scheduled_for)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <span className="text-xs sm:text-sm capitalize">{schedule.post_type.replace('_', ' ')}</span>
-                    </div>
-                  </div>
-
-                  {/* Additional Info */}
-                  {schedule.target_audience && (
-                    <p className="text-xs sm:text-sm text-gray-600 mb-2">
-                      🎯 Target: {schedule.target_audience}
-                    </p>
+        <div className="space-y-6">
+          {/* Monthly Groups */}
+          {monthGroups.map((group) => (
+            <div key={group.monthYear} className="bg-white rounded-lg shadow-sm overflow-hidden border-2 border-gray-200">
+              {/* Month Header - Clickable */}
+              <button
+                onClick={() => toggleMonth(group.monthYear)}
+                className="w-full px-6 py-4 bg-white border-l-4 border-red-600 text-gray-900 flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {expandedMonths.has(group.monthYear) ? (
+                    <ChevronDown className="w-5 h-5 text-red-600" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-red-600" />
                   )}
-
-                  {schedule.special_context && (
-                    <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">
-                      📝 Context: {schedule.special_context}
-                    </p>
-                  )}
-
-                  {/* Content Status */}
-                  {schedule.generated_content && (
-                    <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-xs sm:text-sm text-green-800">
-                        ✅ Content generated: {schedule.content_generated_at ? new Date(schedule.content_generated_at).toLocaleString() : 'Recently'}
-                        {' · '}
-                        {schedule.generated_content.length} characters
-                      </p>
-                    </div>
-                  )}
-
-                  {!schedule.generated_content && schedule.status === 'scheduled' && (
-                    <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <p className="text-xs sm:text-sm text-yellow-800">
-                        ⏳ Content will be generated 2 hours before scheduled time
-                      </p>
-                    </div>
-                  )}
+                  <Calendar className="w-5 h-5 text-red-600" />
+                  <h2 className="text-lg sm:text-xl font-bold">{group.displayName}</h2>
                 </div>
+                <span className="text-sm bg-red-100 text-red-800 px-3 py-1 rounded-full font-semibold">
+                  {group.posts.length} post{group.posts.length !== 1 ? 's' : ''}
+                </span>
+              </button>
 
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-2 w-full lg:w-auto lg:ml-6">
-                  {schedule.generated_content && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setSelectedSchedule(schedule)
-                          setShowContentModal(true)
-                        }}
-                        className="px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View Content
-                      </button>
-
-                      <button
-                        onClick={() => handleSendReminder(schedule)}
-                        disabled={sendingReminderId === schedule.id}
-                        className="px-4 py-2.5 min-h-[44px] bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                        title="Send reminder email now"
-                      >
-                        <Mail className="w-4 h-4" />
-                        {sendingReminderId === schedule.id ? 'Sending...' : 'Send Reminder'}
-                      </button>
-                    </>
-                  )}
-
-                  {schedule.status !== 'posted' && (
-                    <button
-                      onClick={() => handleRegenerateContent(schedule)}
-                      disabled={regeneratingId === schedule.id}
-                      className="px-4 py-2.5 min-h-[44px] bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              {/* Posts in this month - Collapsible */}
+              {expandedMonths.has(group.monthYear) && (
+                <div className="divide-y divide-gray-200">
+                  {group.posts.map((schedule) => (
+                    <div
+                      key={schedule.id}
+                      className="p-4 sm:p-6 hover:bg-gray-50 transition-colors"
                     >
-                      <RotateCw className={`w-4 h-4 ${regeneratingId === schedule.id ? 'animate-spin' : ''}`} />
-                      {regeneratingId === schedule.id ? 'Generating...' : 'Regenerate'}
-                    </button>
-                  )}
+                      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 sm:gap-4">
+                        <div className="flex-1 min-w-0">
+                          {/* Badges Row */}
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            {getStatusBadge(schedule.status)}
+                            {!isUpcoming(schedule.scheduled_for) && schedule.status !== 'posted' && (
+                              <span className="px-2 sm:px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold border-2 border-red-300">
+                                ⚠️ Overdue
+                              </span>
+                            )}
+                            {schedule.reminder_sent && (
+                              <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                📧 Reminder
+                              </span>
+                            )}
+                          </div>
 
-                  {schedule.status === 'content_ready' && (
-                    <button
-                      onClick={() => handleMarkAsPosted(schedule.id)}
-                      className="px-4 py-2.5 min-h-[44px] bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Mark Posted
-                    </button>
-                  )}
+                          {/* Info Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
+                            <div className="flex items-center gap-2 text-gray-900">
+                              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 shrink-0" />
+                              <span className="font-semibold text-sm sm:text-base truncate">{schedule.facebook_groups.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <Calendar className="w-4 h-4 shrink-0" />
+                              <span className="text-xs sm:text-sm">{formatDate(schedule.scheduled_for)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <span className="text-xs sm:text-sm capitalize">{schedule.post_type.replace('_', ' ')}</span>
+                            </div>
+                          </div>
 
-                  {schedule.status !== 'posted' && (
-                    <button
-                      onClick={() => handleCancel(schedule.id)}
-                      className="px-4 py-2.5 min-h-[44px] bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Cancel
-                    </button>
-                  )}
+                          {/* Additional Info */}
+                          {schedule.target_audience && (
+                            <p className="text-xs sm:text-sm text-gray-600 mb-2">
+                              🎯 Target: {schedule.target_audience}
+                            </p>
+                          )}
 
-                  <button
-                    onClick={() => handleDelete(schedule.id)}
-                    className="px-4 py-2.5 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
+                          {schedule.special_context && (
+                            <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">
+                              📝 Context: {schedule.special_context}
+                            </p>
+                          )}
+
+                          {/* Content Status */}
+                          {schedule.generated_content && (
+                            <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                              <p className="text-xs sm:text-sm text-green-800">
+                                ✅ Content generated: {schedule.content_generated_at ? new Date(schedule.content_generated_at).toLocaleString() : 'Recently'}
+                                {' · '}
+                                {schedule.generated_content.length} characters
+                              </p>
+                            </div>
+                          )}
+
+                          {!schedule.generated_content && schedule.status === 'scheduled' && (
+                            <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                              <p className="text-xs sm:text-sm text-yellow-800">
+                                ⏳ Content will be generated 2 hours before scheduled time
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 w-full lg:w-auto lg:ml-6">
+                          {schedule.generated_content && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedSchedule(schedule)
+                                  setShowContentModal(true)
+                                }}
+                                className="px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View Content
+                              </button>
+
+                              <button
+                                onClick={() => handleSendReminder(schedule)}
+                                disabled={sendingReminderId === schedule.id}
+                                className="px-4 py-2.5 min-h-[44px] bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                              >
+                                <Mail className="w-4 h-4" />
+                                {sendingReminderId === schedule.id ? 'Sending...' : 'Send Reminder'}
+                              </button>
+                            </>
+                          )}
+
+                          {schedule.status !== 'posted' && (
+                            <button
+                              onClick={() => handleRegenerateContent(schedule)}
+                              disabled={regeneratingId === schedule.id}
+                              className="px-4 py-2.5 min-h-[44px] bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                            >
+                              <RotateCw className={`w-4 h-4 ${regeneratingId === schedule.id ? 'animate-spin' : ''}`} />
+                              {regeneratingId === schedule.id ? 'Generating...' : 'Regenerate'}
+                            </button>
+                          )}
+
+                          {schedule.status === 'content_ready' && (
+                            <button
+                              onClick={() => handleMarkAsPosted(schedule.id)}
+                              className="px-4 py-2.5 min-h-[44px] bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              Mark Posted
+                            </button>
+                          )}
+
+                          {schedule.status !== 'posted' && (
+                            <button
+                              onClick={() => handleCancel(schedule.id)}
+                              className="px-4 py-2.5 min-h-[44px] bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Cancel
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleDelete(schedule.id)}
+                            className="px-4 py-2.5 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>
