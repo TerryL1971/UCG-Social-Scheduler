@@ -1,674 +1,648 @@
-// app/dashboard/posts/schedule/page.tsx
+// app/dashboard/posts/page.tsx - WITH MONTHLY GROUPING
 
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Calendar, Users, MapPin, Wand2, Save, ExternalLink, Copy } from 'lucide-react'
+import { PostsListSkeleton } from '@/components/ui/LoadingSkeletons'
+import { Calendar, Clock, Users, Eye, RotateCw, CheckCircle, XCircle, Trash2, Plus, Mail, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
-type FacebookGroup = {
+type PostSchedule = {
   id: string
-  name: string
-  territory_id: string
-  group_type?: string
-  description?: string
-  facebook_url?: string
-  territories?: {
+  scheduled_for: string
+  post_type: string
+  status: 'scheduled' | 'content_ready' | 'posted' | 'cancelled'
+  reminder_sent: boolean
+  generated_content?: string
+  content_generated_at?: string
+  target_audience?: string
+  special_context?: string
+  facebook_groups: {
+    name: string
+    group_url?: string
+    facebook_url?: string
+  }
+  territories: {
     name: string
   }
 }
 
-type PostType = 'vehicle_spotlight' | 'special_offer' | 'brand_awareness' | 'community' | 'testimonial_style'
-
-type VehicleData = {
-  make: string
-  model: string
-  year: string
-  price: string
-  features: string
-  condition: string
-  mileage: string
+type MonthGroup = {
+  monthYear: string
+  displayName: string
+  posts: PostSchedule[]
 }
 
-type TestimonialData = {
-  customerName: string
-  vehicle: string
-  experience: string
-  location: string
-}
-
-type UserProfile = {
-  full_name: string
-  email: string
-  whatsapp?: string
-}
-
-export default function SchedulePostPage() {
+export default function PostsDashboardPage() {
   const router = useRouter()
   const supabase = createClient()
-
-  const [loading, setLoading] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [groups, setGroups] = useState<FacebookGroup[]>([])
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   
-  // Form state
-  const [selectedGroup, setSelectedGroup] = useState('')
-  const [postType, setPostType] = useState<PostType>('vehicle_spotlight')
-  const [targetAudience, setTargetAudience] = useState('')
-  const [additionalContext, setAdditionalContext] = useState('')
-  const [specialOffer, setSpecialOffer] = useState('')
-  
-  // Vehicle data
-  const [vehicleData, setVehicleData] = useState<VehicleData>({
-    make: '',
-    model: '',
-    year: '',
-    price: '',
-    features: '',
-    condition: '',
-    mileage: ''
-  })
-
-  // Testimonial data
-  const [testimonialData, setTestimonialData] = useState<TestimonialData>({
-    customerName: '',
-    vehicle: '',
-    experience: '',
-    location: ''
-  })
-
-  // Content state
-  const [generatedContent, setGeneratedContent] = useState('')
-  const [editedContent, setEditedContent] = useState('')
-  const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
-
-  // Schedule state
-  const [scheduledDate, setScheduledDate] = useState('')
-  const [scheduledTime, setScheduledTime] = useState('')
-  const [minDate] = useState(new Date().toISOString().split('T')[0])
+  const [loading, setLoading] = useState(true)
+  const [schedules, setSchedules] = useState<PostSchedule[]>([])
+  const [selectedSchedule, setSelectedSchedule] = useState<PostSchedule | null>(null)
+  const [showContentModal, setShowContentModal] = useState(false)
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null)
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    loadGroups()
-    loadUserProfile()
+    loadSchedules()
   }, [])
 
-  const loadGroups = async () => {
+  const loadSchedules = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
       const { data, error } = await supabase
-        .from('facebook_groups')
-        .select('id, name, group_type, description, facebook_url, territory_id, territories(name)')
+        .from('post_schedules')
+        .select(`
+          id,
+          scheduled_for,
+          post_type,
+          status,
+          reminder_sent,
+          generated_content,
+          content_generated_at,
+          target_audience,
+          special_context,
+          facebook_groups!inner(name, group_url, facebook_url),
+          territories(name)
+        `)
         .eq('user_id', user.id)
-        .eq('is_active', true)
+        .in('status', ['scheduled', 'content_ready', 'posted'])
+        .order('scheduled_for', { ascending: true })
 
       if (error) throw error
 
-      const flattenedData = data?.map(group => ({
-        ...group,
-        territories: Array.isArray(group.territories) ? group.territories[0] : group.territories
+      const transformed = data?.map(item => ({
+        ...item,
+        facebook_groups: Array.isArray(item.facebook_groups) ? item.facebook_groups[0] : item.facebook_groups,
+        territories: Array.isArray(item.territories) ? item.territories[0] : item.territories
       })) || []
 
-      setGroups(flattenedData)
-    } catch (err) {
-      console.error('Error loading groups:', err)
-      toast.error('Failed to load groups')
-    }
-  }
-
-  const loadUserProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, email, whatsapp')
-        .eq('id', user.id)
-        .single()
-
-      if (error) throw error
-      setUserProfile(data)
-    } catch (err) {
-      console.error('Error loading profile:', err)
-    }
-  }
-
-  const handleGenerateContent = async () => {
-    if (!selectedGroup || !postType) {
-      toast.warning('Please select a group and post type')
-      return
-    }
-
-    // Validation for vehicle spotlight
-    if ((postType === 'vehicle_spotlight' || postType === 'special_offer') && !vehicleData.make) {
-      toast.warning('Please enter vehicle details for this post type')
-      return
-    }
-
-    // Validation for testimonial
-    if (postType === 'testimonial_style' && !testimonialData.customerName) {
-      toast.warning('Please enter customer testimonial details')
-      return
-    }
-
-    setGenerating(true)
-    setError('')
-
-    try {
-      const group = groups.find(g => g.id === selectedGroup)
-      if (!group) throw new Error('Group not found')
-
-      const response = await fetch('/api/posts/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          groupName: group.name,
-          groupType: group.group_type,
-          territory: group.territories?.name || 'Unknown',
-          groupDescription: group.description,
-          postType,
-          specialOffer: postType === 'special_offer' ? specialOffer : undefined,
-          targetAudience,
-          additionalContext,
-          vehicleData: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : undefined,
-          testimonialData: postType === 'testimonial_style' ? testimonialData : undefined,
-          userProfile: userProfile
-        })
-      })
-
-      const data = await response.json()
+      setSchedules(transformed as PostSchedule[])
       
-      if (!response.ok) {
-        throw new Error(data.details || data.error || 'Failed to generate post')
-      }
-
-      if (!data.content) {
-        throw new Error('No content received from AI')
-      }
-
-      setGeneratedContent(data.content)
-      setEditedContent(data.content)
+      // Auto-expand current month and next month
+      const now = new Date()
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const nextMonthKey = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`
+      setExpandedMonths(new Set([currentMonthKey, nextMonthKey]))
       
-      // Scroll to preview
-      setTimeout(() => {
-        document.getElementById('preview-section')?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
-        })
-      }, 100)
-      
-    } catch (err) {
-      console.error('Generation error:', err)
-      const errorMsg = err instanceof Error ? err.message : 'Failed to generate post'
-      setError(errorMsg)
-      toast.error(errorMsg)
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const handleSchedulePost = async () => {
-    if (!editedContent || !selectedGroup || !scheduledDate || !scheduledTime) {
-      toast.warning('Please complete all required fields')
-      return
-    }
-
-    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
-    if (!timeRegex.test(scheduledTime)) {
-      toast.warning('Invalid time format. Use HH:MM in 24-hour format (e.g., 09:00, 14:30)')
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
-      const group = groups.find(g => g.id === selectedGroup)
-      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00`)
-
-      const { error } = await supabase
-        .from('post_schedules')
-        .insert({
-          user_id: user.id,
-          group_id: selectedGroup,
-          territory_id: group?.territory_id,
-          scheduled_for: scheduledFor.toISOString(),
-          post_type: postType,
-          generated_content: editedContent,
-          content_generated_at: new Date().toISOString(),
-          status: 'content_ready',
-          reminder_sent: false,
-          target_audience: targetAudience || null,
-          special_context: additionalContext || null,
-          special_offer: postType === 'special_offer' ? specialOffer : null,
-          vehicle_data: (postType === 'vehicle_spotlight' || postType === 'special_offer') ? vehicleData : null,
-          testimonial_data: postType === 'testimonial_style' ? testimonialData : null
-        })
-
-      if (error) throw error
-
-      toast.success('Post scheduled successfully! 🎉')
-      router.push('/dashboard/posts')
-
-    } catch (err) {
-      console.error('Error scheduling post:', err)
-      const errorMsg = err instanceof Error ? err.message : 'Failed to schedule post'
-      toast.error(errorMsg)
+    } catch (error) {
+      console.error('Error loading schedules:', error)
+      toast.error('Failed to load schedules')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCopyToClipboard = async () => {
+  const groupPostsByMonth = (posts: PostSchedule[]): MonthGroup[] => {
+    const groups = new Map<string, PostSchedule[]>()
+    
+    posts.forEach(post => {
+      const date = new Date(post.scheduled_for)
+      const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      
+      if (!groups.has(monthYear)) {
+        groups.set(monthYear, [])
+      }
+      groups.get(monthYear)!.push(post)
+    })
+    
+    return Array.from(groups.entries())
+      .map(([monthYear, posts]) => {
+        const [year, month] = monthYear.split('-')
+        const date = new Date(parseInt(year), parseInt(month) - 1, 1)
+        const displayName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        
+        return {
+          monthYear,
+          displayName,
+          posts
+        }
+      })
+      .sort((a, b) => a.monthYear.localeCompare(b.monthYear))
+  }
+
+  const toggleMonth = (monthYear: string) => {
+    setExpandedMonths(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(monthYear)) {
+        newSet.delete(monthYear)
+      } else {
+        newSet.add(monthYear)
+      }
+      return newSet
+    })
+  }
+
+  const handleRegenerateContent = async (schedule: PostSchedule) => {
+    if (!confirm('Generate fresh content for this post? This will replace any existing content.')) {
+      return
+    }
+
+    setRegeneratingId(schedule.id)
     try {
-      await navigator.clipboard.writeText(editedContent)
-      setCopied(true)
+      const response = await fetch(`/api/schedules/${schedule.id}/regenerate`, {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to regenerate content')
+      }
+
+      toast.success('Content regenerated successfully!')      
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error regenerating:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to regenerate content')
+    } finally {
+      setRegeneratingId(null)
+    }
+  }
+
+  const handleSendReminder = async (schedule: PostSchedule) => {
+    if (!schedule.generated_content) {
+      toast.warning('No content generated yet. Please regenerate content first.')
+      return
+    }
+
+    if (!confirm(`Send reminder email now for "${schedule.facebook_groups.name}"?`)) {
+      return
+    }
+
+    setSendingReminderId(schedule.id)
+    try {
+      const response = await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduleId: schedule.id })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send reminder')
+      }
+
+      toast.success('Reminder email sent successfully! ✅ Check your inbox.')
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error sending reminder:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to send reminder')
+    } finally {
+      setSendingReminderId(null)
+    }
+  }
+
+  const handleMarkAsPosted = async (scheduleId: string) => {
+    if (!confirm('Mark this post as posted? This will move it to your posting history.')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('post_schedules')
+        .update({
+          status: 'posted',
+          posted_at: new Date().toISOString()
+        })
+        .eq('id', scheduleId)
+
+      if (error) throw error
+
+      toast.success('Marked as posted!')      
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error marking as posted:', error)
+      toast.error('Failed to mark as posted')
+    }
+  }
+
+  const handleCancel = async (scheduleId: string) => {
+    if (!confirm('Cancel this scheduled post?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('post_schedules')
+        .update({ status: 'cancelled' })
+        .eq('id', scheduleId)
+
+      if (error) throw error
+
+      toast.success('Schedule cancelled')      
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error cancelling:', error)
+      toast.error('Failed to cancel schedule')
+    }
+  }
+
+  const handleDelete = async (scheduleId: string) => {
+    if (!confirm('Permanently delete this schedule? This cannot be undone.')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('post_schedules')
+        .delete()
+        .eq('id', scheduleId)
+
+      if (error) throw error
+
+      toast.success('Schedule deleted')      
+      await loadSchedules()
+    } catch (error) {
+      console.error('Error deleting:', error)
+      toast.error('Failed to delete schedule')
+    }
+  }
+
+  const handleCopyToClipboard = async () => {
+    if (selectedSchedule?.generated_content) {
+      await navigator.clipboard.writeText(selectedSchedule.generated_content)
       toast.success('Content copied to clipboard!')
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-      toast.error('Failed to copy to clipboard')
     }
   }
 
   const openFacebookGroup = () => {
-    if (selectedGroupData?.facebook_url) {
-      window.open(selectedGroupData.facebook_url, '_blank')
+    const url = selectedSchedule?.facebook_groups?.facebook_url || selectedSchedule?.facebook_groups?.group_url
+    if (url) {
+      window.open(url, '_blank')
+    } else {
+      toast.warning('No Facebook URL set for this group')
     }
   }
 
-  const selectedGroupData = groups.find(g => g.id === selectedGroup)
+  const getStatusBadge = (status: string) => {
+    const badges = {
+      scheduled: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      content_ready: 'bg-green-100 text-green-800 border-green-300',
+      posted: 'bg-blue-100 text-blue-800 border-blue-300',
+      cancelled: 'bg-gray-100 text-gray-800 border-gray-300'
+    }
+    
+    const labels = {
+      scheduled: '⏳ Scheduled',
+      content_ready: '✅ Content Ready',
+      posted: '📤 Posted',
+      cancelled: '❌ Cancelled'
+    }
+
+    return (
+      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold border-2 ${badges[status as keyof typeof badges]}`}>
+        {labels[status as keyof typeof labels]}
+      </span>
+    )
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Berlin'
+    })
+  }
+
+  const isUpcoming = (dateString: string) => {
+    return new Date(dateString) > new Date()
+  }
+
+  if (loading) {
+    return <PostsListSkeleton />
+  }
+
+  const monthGroups = groupPostsByMonth(schedules)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 px-4">
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Calendar className="w-8 h-8" />
-          Schedule a Post
-        </h1>
-        <p className="mt-2 text-red-100">
-          Create and schedule AI-generated content for your Facebook groups
-        </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Scheduled Posts</h1>
+          <p className="mt-1 text-sm sm:text-base text-gray-600">
+            Manage your upcoming posts and posting history
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/dashboard/posts/schedule')}
+          className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-4 sm:px-6 py-3 min-h-[44px] rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm sm:text-base"
+        >
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="hidden sm:inline">Schedule New Post</span>
+          <span className="sm:hidden">New Post</span>
+        </button>
       </div>
 
-      {/* Step 1: Select Group */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Users className="w-6 h-6 text-red-600" />
-          Step 1: Select Facebook Group
-        </h2>
-        <select
-          value={selectedGroup}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-        >
-          <option value="">Choose a group...</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name} - {group.territories?.name}
-            </option>
-          ))}
-        </select>
-        
-        {selectedGroupData && (
-          <div className="flex items-center gap-3 mt-3">
-            <div className="flex-1 p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-red-600" />
-                <strong>Territory:</strong> {selectedGroupData.territories?.name}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-yellow-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600">Scheduled</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                {schedules.filter(s => s.status === 'scheduled').length}
               </p>
-              {selectedGroupData.group_type && (
-                <p className="text-sm text-gray-600 mt-1">
-                  <strong>Type:</strong> {selectedGroupData.group_type}
-                </p>
+            </div>
+            <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-500 shrink-0" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-green-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600">Content Ready</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                {schedules.filter(s => s.status === 'content_ready').length}
+              </p>
+            </div>
+            <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 shrink-0" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-blue-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600">Posted</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                {schedules.filter(s => s.status === 'posted').length}
+              </p>
+            </div>
+            <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 shrink-0" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-l-4 border-gray-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600">Total</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                {schedules.length}
+              </p>
+            </div>
+            <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-gray-500 shrink-0" />
+          </div>
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {schedules.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm p-8 sm:p-12 text-center">
+          <Calendar className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No schedules yet</h3>
+          <p className="text-sm sm:text-base text-gray-600 mb-6">
+            Create your first scheduled post to get started
+          </p>
+          <button
+            onClick={() => router.push('/dashboard/posts/schedule')}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Schedule New Post
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Monthly Groups */}
+          {monthGroups.map((group) => (
+            <div key={group.monthYear} className="bg-white rounded-lg shadow-sm overflow-hidden border-2 border-gray-200">
+              {/* Month Header - Clickable */}
+              <button
+                onClick={() => toggleMonth(group.monthYear)}
+                className="w-full px-6 py-4 bg-white border-l-4 border-red-600 text-gray-900 flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {expandedMonths.has(group.monthYear) ? (
+                    <ChevronDown className="w-5 h-5 text-red-600" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-red-600" />
+                  )}
+                  <Calendar className="w-5 h-5 text-red-600" />
+                  <h2 className="text-lg sm:text-xl font-bold">{group.displayName}</h2>
+                </div>
+                <span className="text-sm bg-red-100 text-red-800 px-3 py-1 rounded-full font-semibold">
+                  {group.posts.length} post{group.posts.length !== 1 ? 's' : ''}
+                </span>
+              </button>
+
+              {/* Posts in this month - Collapsible */}
+              {expandedMonths.has(group.monthYear) && (
+                <div className="divide-y divide-gray-200">
+                  {group.posts.map((schedule) => (
+                    <div
+                      key={schedule.id}
+                      className="p-4 sm:p-6 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 sm:gap-4">
+                        <div className="flex-1 min-w-0">
+                          {/* Badges Row */}
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            {getStatusBadge(schedule.status)}
+                            {!isUpcoming(schedule.scheduled_for) && schedule.status !== 'posted' && (
+                              <span className="px-2 sm:px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold border-2 border-red-300">
+                                ⚠️ Overdue
+                              </span>
+                            )}
+                            {schedule.reminder_sent && (
+                              <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                📧 Reminder
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Info Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
+                            <div className="flex items-center gap-2 text-gray-900">
+                              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 shrink-0" />
+                              <span className="font-semibold text-sm sm:text-base truncate">{schedule.facebook_groups.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <Calendar className="w-4 h-4 shrink-0" />
+                              <span className="text-xs sm:text-sm">{formatDate(schedule.scheduled_for)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <span className="text-xs sm:text-sm capitalize">{schedule.post_type.replace('_', ' ')}</span>
+                            </div>
+                          </div>
+
+                          {/* Additional Info */}
+                          {schedule.target_audience && (
+                            <p className="text-xs sm:text-sm text-gray-600 mb-2">
+                              🎯 Target: {schedule.target_audience}
+                            </p>
+                          )}
+
+                          {schedule.special_context && (
+                            <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">
+                              📝 Context: {schedule.special_context}
+                            </p>
+                          )}
+
+                          {/* Content Status */}
+                          {schedule.generated_content && (
+                            <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                              <p className="text-xs sm:text-sm text-green-800">
+                                ✅ Content generated: {schedule.content_generated_at ? new Date(schedule.content_generated_at).toLocaleString() : 'Recently'}
+                                {' · '}
+                                {schedule.generated_content.length} characters
+                              </p>
+                            </div>
+                          )}
+
+                          {!schedule.generated_content && schedule.status === 'scheduled' && (
+                            <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                              <p className="text-xs sm:text-sm text-yellow-800">
+                                ⏳ Content will be generated 2 hours before scheduled time
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 w-full lg:w-auto lg:ml-6">
+                          {schedule.generated_content && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedSchedule(schedule)
+                                  setShowContentModal(true)
+                                }}
+                                className="px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View Content
+                              </button>
+
+                              <button
+                                onClick={() => handleSendReminder(schedule)}
+                                disabled={sendingReminderId === schedule.id}
+                                className="px-4 py-2.5 min-h-[44px] bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                              >
+                                <Mail className="w-4 h-4" />
+                                {sendingReminderId === schedule.id ? 'Sending...' : 'Send Reminder'}
+                              </button>
+                            </>
+                          )}
+
+                          {schedule.status !== 'posted' && (
+                            <button
+                              onClick={() => handleRegenerateContent(schedule)}
+                              disabled={regeneratingId === schedule.id}
+                              className="px-4 py-2.5 min-h-[44px] bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                            >
+                              <RotateCw className={`w-4 h-4 ${regeneratingId === schedule.id ? 'animate-spin' : ''}`} />
+                              {regeneratingId === schedule.id ? 'Generating...' : 'Regenerate'}
+                            </button>
+                          )}
+
+                          {schedule.status === 'content_ready' && (
+                            <button
+                              onClick={() => handleMarkAsPosted(schedule.id)}
+                              className="px-4 py-2.5 min-h-[44px] bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              Mark Posted
+                            </button>
+                          )}
+
+                          {schedule.status !== 'posted' && (
+                            <button
+                              onClick={() => handleCancel(schedule.id)}
+                              className="px-4 py-2.5 min-h-[44px] bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Cancel
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleDelete(schedule.id)}
+                            className="px-4 py-2.5 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            
-            {selectedGroupData.facebook_url && (
-              <button
-                onClick={openFacebookGroup}
-                className="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open in Facebook
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Step 2: Post Type */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Sparkles className="w-6 h-6 text-red-600" />
-          Step 2: Choose Post Type
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[
-            { value: 'vehicle_spotlight', label: 'Vehicle Spotlight', desc: 'Feature a specific car' },
-            { value: 'special_offer', label: 'Special Offer', desc: 'Promote deals & discounts' },
-            { value: 'brand_awareness', label: 'Brand Awareness', desc: 'Build relationships' },
-            { value: 'community', label: 'Community Focus', desc: 'Military community emphasis' },
-            { value: 'testimonial_style', label: 'Success Story', desc: 'Customer testimonials' }
-          ].map((type) => (
-            <button
-              key={type.value}
-              onClick={() => setPostType(type.value as PostType)}
-              className={`p-4 border-2 rounded-lg text-left transition-all ${
-                postType === type.value
-                  ? 'border-red-600 bg-red-50'
-                  : 'border-gray-200 hover:border-red-300'
-              }`}
-            >
-              <p className="font-semibold text-gray-900">{type.label}</p>
-              <p className="text-sm text-gray-600 mt-1">{type.desc}</p>
-            </button>
           ))}
         </div>
+      )}
 
-        {/* Vehicle Data Form */}
-        {(postType === 'vehicle_spotlight' || postType === 'special_offer') && (
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
-            <h3 className="font-semibold text-gray-900 text-lg mb-4">🚗 Vehicle Details</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Make (e.g., Toyota)"
-                value={vehicleData.make}
-                onChange={(e) => setVehicleData({...vehicleData, make: e.target.value})}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Model (e.g., Camry)"
-                value={vehicleData.model}
-                onChange={(e) => setVehicleData({...vehicleData, model: e.target.value})}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Year (e.g., 2020)"
-                value={vehicleData.year}
-                onChange={(e) => setVehicleData({...vehicleData, year: e.target.value})}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Price (e.g., $15,000)"
-                value={vehicleData.price}
-                onChange={(e) => setVehicleData({...vehicleData, price: e.target.value})}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Mileage (e.g., 45,000 miles)"
-                value={vehicleData.mileage}
-                onChange={(e) => setVehicleData({...vehicleData, mileage: e.target.value})}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Condition (e.g., Excellent)"
-                value={vehicleData.condition}
-                onChange={(e) => setVehicleData({...vehicleData, condition: e.target.value})}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
+      {/* Modal */}
+      {showContentModal && selectedSchedule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg w-full max-w-full sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0 mr-4">
+                  <h2 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">Generated Content</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
+                    {selectedSchedule.facebook_groups.name} • {formatDate(selectedSchedule.scheduled_for)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowContentModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  ×
+                </button>
+              </div>
             </div>
-            <textarea
-              placeholder="Key Features (e.g., leather seats, backup camera, low mileage...)"
-              value={vehicleData.features}
-              onChange={(e) => setVehicleData({...vehicleData, features: e.target.value})}
-              className="w-full mt-4 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              rows={2}
-            />
-          </div>
-        )}
 
-        {/* Testimonial Data Form */}
-        {postType === 'testimonial_style' && (
-          <div className="mt-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
-            <h3 className="font-semibold text-gray-900 text-lg mb-4">⭐ Customer Testimonial</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Customer Name (or 'Recent Customer')"
-                value={testimonialData.customerName}
-                onChange={(e) => setTestimonialData({...testimonialData, customerName: e.target.value})}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Vehicle Purchased (e.g., 2019 Honda Accord)"
-                value={testimonialData.vehicle}
-                onChange={(e) => setTestimonialData({...testimonialData, vehicle: e.target.value})}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <input
-                type="text"
-                placeholder="Location (e.g., Kaiserslautern)"
-                value={testimonialData.location}
-                onChange={(e) => setTestimonialData({...testimonialData, location: e.target.value})}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-              <textarea
-                placeholder="Their Experience (e.g., Great service, found perfect car, smooth process...)"
-                value={testimonialData.experience}
-                onChange={(e) => setTestimonialData({...testimonialData, experience: e.target.value})}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-                rows={3}
-              />
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+              <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                <pre className="whitespace-pre-wrap font-sans text-gray-900 text-sm leading-relaxed">
+                  {selectedSchedule.generated_content}
+                </pre>
+              </div>
+
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs sm:text-sm text-blue-800">
+                  💡 <strong>Pro Tip:</strong> Copy the content, then click "Go to Facebook Group" to paste it directly!
+                </p>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Special Offer */}
-        {postType === 'special_offer' && (
-          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Special Offer Details
-            </label>
-            <textarea
-              value={specialOffer}
-              onChange={(e) => setSpecialOffer(e.target.value)}
-              placeholder="e.g., 10% off for military, free extended warranty, special financing..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              rows={2}
-            />
-          </div>
-        )}
-
-        {/* Additional Context */}
-        <div className="mt-4 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Target Audience (Optional)
-            </label>
-            <input
-              type="text"
-              value={targetAudience}
-              onChange={(e) => setTargetAudience(e.target.value)}
-              placeholder="e.g., young families, new arrivals, first-time buyers"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Additional Context (Optional)
-            </label>
-            <textarea
-              value={additionalContext}
-              onChange={(e) => setAdditionalContext(e.target.value)}
-              placeholder="Any other details: promotions, urgency, special circumstances..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              rows={2}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Step 3: Generate Content */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Wand2 className="w-6 h-6 text-red-600" />
-          Step 3: Generate Content
-        </h2>
-        <button
-          onClick={handleGenerateContent}
-          disabled={generating || !selectedGroup}
-          className="w-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold py-4 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-        >
-          {generating ? (
-            <>
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              Generating AI Content...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-5 h-5" />
-              Generate Post with AI
-            </>
-          )}
-        </button>
-        {error && (
-          <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Step 4: Preview & Edit */}
-      {editedContent && (
-        <div id="preview-section" className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Save className="w-6 h-6 text-red-600" />
-            Step 4: Review & Edit Content
-          </h2>
-          <textarea
-            value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
-            placeholder="Your post content will appear here... or type your own!"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 font-sans"
-            rows={12}
-          />
-          <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-            <p className="text-sm text-gray-600">
-              {editedContent.length} characters
-            </p>
-            <div className="flex items-center gap-2">
+            <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleCopyToClipboard}
-                disabled={!editedContent}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                className="flex-1 px-6 py-3 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors text-sm sm:text-base"
               >
-                <Copy className="w-4 h-4" />
-                {copied ? 'Copied!' : 'Copy to Clipboard'}
+                📋 Copy to Clipboard
               </button>
               
-              {selectedGroupData?.facebook_url && (
+              {(selectedSchedule.facebook_groups.facebook_url || selectedSchedule.facebook_groups.group_url) && (
                 <button
                   onClick={openFacebookGroup}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  className="flex-1 px-6 py-3 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                 >
                   <ExternalLink className="w-4 h-4" />
                   Go to Facebook Group
                 </button>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step 5: Schedule */}
-      {editedContent && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-red-600" />
-            Step 5: When to Post
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Date
-              </label>
-              <input
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                min={minDate}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Time (HH:MM in 24-hour format)
-              </label>
-              <input
-                type="text"
-                value={scheduledTime}
-                onChange={(e) => {
-                  let value = e.target.value.replace(/[^\d:]/g, '')
-                  if (value.length === 4 && !value.includes(':')) {
-                    value = value.substring(0, 2) + ':' + value.substring(2)
-                  }
-                  if (value.length <= 5) {
-                    setScheduledTime(value)
-                  }
-                }}
-                placeholder="14:30"
-                maxLength={5}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 font-mono"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Examples: 09:00, 14:30, 18:45, 23:59
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
-              <strong>Note:</strong> You'll receive a reminder email 2 hours before the scheduled time. 
-              You'll need to manually post the content to Facebook.
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-1 gap-4 mt-6">
-            <button
-              onClick={handleSchedulePost}
-              disabled={loading || !scheduledDate || !scheduledTime}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Scheduling...
-                </>
-              ) : (
-                <>
-                  <Calendar className="w-5 h-5" />
-                  Schedule Post
-                </>
-              )}
-            </button>
-
-            {selectedGroupData?.facebook_url && (
+              
               <button
-                onClick={openFacebookGroup}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-3"
+                onClick={() => setShowContentModal(false)}
+                className="px-6 py-3 min-h-[44px] bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors text-sm sm:text-base"
               >
-                <ExternalLink className="w-5 h-5" />
-                Go to Facebook Group - Ready to Post!
+                Close
               </button>
-            )}
+            </div>
           </div>
         </div>
       )}
