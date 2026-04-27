@@ -65,6 +65,7 @@ export default function LoginPage() {
               alt="UCG Logo"
               width={120}
               height={120}
+              style={{ width: 'auto' }}
               className="object-contain"
             />
           </div>
