@@ -180,7 +180,7 @@ export default function DashboardLayout({
   const [userRole, setUserRole] = useState<string>('')
   const [userName, setUserName] = useState<string>('')
   const [avatarUrl, setAvatarUrl] = useState<string>('')
-  const [avatarType, setAvatarType] = useState<'image' | 'generated' | 'initial'>('initial')
+  const [avatarType, setAvatarType] = useState<'image' | 'initial'>('initial')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(true) // ← NEW: prevents nav rendering before role is fetched
 
@@ -221,7 +221,7 @@ export default function DashboardLayout({
         setUserRole(role)
         setUserName(profile.full_name || user.email || 'User')
         setAvatarUrl(profile.avatar_url || '')
-        setAvatarType(profile.avatar_type || 'initial')
+        setAvatarType(profile.avatar_type === 'image' ? 'image' : 'initial')
       } else {
         console.warn('⚠️ Profile exists but is null, using defaults')
         setUserRole('salesperson')
@@ -251,20 +251,20 @@ export default function DashboardLayout({
   }
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Create Post', href: '/dashboard/posts/create', icon: Sparkles, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Bulk Operations', href: '/dashboard/posts/bulk', icon: Layers, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Recurring Posts', href: '/dashboard/posts/recurring', icon: RotateCw, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Territories', href: '/dashboard/territories', icon: MapPin, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Credits', href: '/dashboard/credits', icon: CreditCard, roles: ['salesperson', 'manager', 'admin', 'marketing','owner'] },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Create Post', href: '/dashboard/posts/create', icon: Sparkles, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Scheduled Posts', href: '/dashboard/posts', icon: Calendar, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Bulk Operations', href: '/dashboard/posts/bulk', icon: Layers, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Templates', href: '/dashboard/templates', icon: FileText, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Recurring Posts', href: '/dashboard/posts/recurring', icon: RotateCw, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Groups', href: '/dashboard/groups', icon: Users, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Territories', href: '/dashboard/territories', icon: MapPin, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, roles: ['manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Credits', href: '/dashboard/credits', icon: CreditCard, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
     { name: 'My Violations', href: '/dashboard/my-violations', icon: AlertTriangle, roles: ['salesperson'] },
-    { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, roles: ['manager', 'admin', 'marketing', 'owner'] },
-    { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'marketing', 'owner'] },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'marketing', 'owner'] },
+    { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, roles: ['manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'owner', 'marketing'] },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
   ]
 
   const filteredNavigation = navigation.filter(item => 
