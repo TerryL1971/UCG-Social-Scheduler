@@ -34,14 +34,13 @@ export default function RegisterPage() {
   const [dealerships, setDealerships] = useState<Dealership[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
 
-  // Fetch dealerships on mount
   useEffect(() => {
     const fetchDealerships = async () => {
       try {
         const supabase = createClient()
-        
         const { data, error } = await supabase
           .from('dealerships')
           .select('id, name, location')
@@ -69,7 +68,6 @@ export default function RegisterPage() {
     e.preventDefault()
     setError('')
 
-    // Validation
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
@@ -91,42 +89,71 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
-
     const supabase = createClient()
 
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Pass all profile data as user_metadata so the DB trigger can use it
+      const { error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            full_name: fullName,
+            role: position,
+            dealership_id: dealershipId,
+          }
+        }
       })
 
       if (authError) throw authError
 
-      if (!authData.user) {
-        throw new Error('Failed to create user')
-      }
-
-      // Create profile
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authData.user.id,
-        email,
-        full_name: fullName,
-        role: position,
-        dealership_id: dealershipId,
-      })
-
-      if (profileError) throw profileError
-
-      // Success - redirect to dashboard
-      router.push('/dashboard')
-      router.refresh()
+      // Show success message - user needs to confirm email
+      setSuccess(true)
     } catch (err) {
       const error = err as Error
       setError(error.message || 'Failed to register')
     } finally {
       setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-4">
+            <div className="flex justify-center">
+              <Image
+                src="/ucg-logo.png"
+                alt="UCG Logo"
+                width={240}
+                height={240}
+                priority
+                className="object-contain"
+                style={{ width: 'auto', height: '100px' }}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Check your email</h2>
+            <p className="text-gray-600">
+              We sent a confirmation link to <strong>{email}</strong>. Click the link to activate your account.
+            </p>
+            <p className="text-sm text-gray-500">
+              Once confirmed, you can{' '}
+              <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                sign in here
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
