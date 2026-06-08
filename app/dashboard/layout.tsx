@@ -25,6 +25,7 @@ import {
   Sparkles,
   Layers,
   CreditCard,
+  Handshake,
 } from 'lucide-react'
 import PWARegister from '../pwa-register'
 
@@ -265,6 +266,8 @@ export default function DashboardLayout({
     { name: 'Violations', href: '/dashboard/violations', icon: AlertTriangle, roles: ['manager', 'admin', 'owner', 'marketing'] },
     { name: 'Management', href: '/dashboard/management', icon: Settings, roles: ['admin', 'owner', 'marketing'] },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['salesperson', 'manager', 'admin', 'owner', 'marketing'] },
+    { name: 'Clients', href: '/dashboard/clients', icon: Handshake, roles: ['owner', 'marketing'] },
+    { name: 'Client Posts', href: '/dashboard/clients/create-post', icon: Sparkles, roles: ['owner', 'marketing'] },
   ]
 
   const filteredNavigation = navigation.filter(item => 
