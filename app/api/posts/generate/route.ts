@@ -161,7 +161,7 @@ To generate real content, disable Test Mode in your settings.`,
 
     // 8. CALL CLAUDE API
     console.log('Generating post with Claude:', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 4096,
       promptLength: prompt.length,
       postType,
@@ -177,7 +177,7 @@ To generate real content, disable Test Mode in your settings.`,
 
     try {
       const message = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 4096,
         messages: [{
           role: 'user',
@@ -645,7 +645,7 @@ Generate the Facebook post now.`
 export async function GET() {
   return NextResponse.json({
     status: 'AI Post Generation API with Credit Management',
-    model: 'claude-sonnet-4',
+    model: 'claude-sonnet-4-5',
     endpoint: '/api/posts/generate',
     features: [
       'Credit balance checking',
